@@ -8,7 +8,7 @@ typedef struct{
 
 typedef struct{
     short int num;
-}registro2byte
+}registro2byte;
 
 
 void lecturaArchivo(char nombre[], short int tablaSegmentos[8][2], int registros[32], char memoriaPrincipal[ram]){
@@ -47,6 +47,6 @@ int main(int argc, char*argv[]){
     char nombre[10];
     iniciaSegmentos(tablaSegmentos);
     int registros[32];
-    char memoriaPrincipal[16384];
+    char memoriaPrincipal[ram];
     lecturaArchivo(nombre, tablaSegmentos, registros, memoriaPrincipal);
 }
