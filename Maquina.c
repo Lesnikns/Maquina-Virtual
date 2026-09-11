@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #define ram 16384
 
 typedef struct{
@@ -41,12 +42,19 @@ void iniciaSegmentos(short int matriz[8][2]){
     }
 }
 
-int main(int argc, char*argv[]){
-
+int main(int argc, char*argv[]) {
     short int tablaSegmentos[8][2]= {0xf};
-    char nombre[10];
-    iniciaSegmentos(tablaSegmentos);
+    //char nombre[10];
     int registros[32];
     char memoriaPrincipal[ram];
-    lecturaArchivo(nombre, tablaSegmentos, registros, memoriaPrincipal);
+
+    if(argc >= 3 && argc <= 4){
+        if(argc == 4 && strcmp(argv[3],"-d") == 0){
+            //aca se debe permitir mostrarse el codigo assembler correspondiente al binario de la .vmx, hacer puntero de escritura a archivo de texto a la vez de procesar instrucciones del vmx??
+        }
+        iniciaSegmentos(tablaSegmentos);
+        lecturaArchivo(argv[2], tablaSegmentos, registros, memoriaPrincipal);
+    }
+    else
+        printf("formato del pedido: ./{ejecutable} vmx {archivo.vmx} [-d]\n");
 }
