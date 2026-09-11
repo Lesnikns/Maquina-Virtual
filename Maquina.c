@@ -43,18 +43,17 @@ void iniciaSegmentos(short int matriz[8][2]){
 }
 
 int main(int argc, char*argv[]) {
-    short int tablaSegmentos[8][2]= {0xf};
-    //char nombre[10];
+    short int tablaSegmentos[8][2];
     int registros[32];
     char memoriaPrincipal[ram];
 
-    if(argc >= 3 && argc <= 4){
-        if(argc == 4 && strcmp(argv[3],"-d") == 0){
+    if(argc >= 2 && argc <= 3){
+        if(argc == 3 && strcmp(argv[2],"-d") == 0){
             //aca se debe permitir mostrarse el codigo assembler correspondiente al binario de la .vmx, hacer puntero de escritura a archivo de texto a la vez de procesar instrucciones del vmx??
         }
         iniciaSegmentos(tablaSegmentos);
-        lecturaArchivo(argv[2], tablaSegmentos, registros, memoriaPrincipal);
+        lecturaArchivo(argv[1], tablaSegmentos, registros, memoriaPrincipal);
     }
     else
-        printf("formato del pedido: ./{ejecutable} vmx {archivo.vmx} [-d]\n");
+        printf("formato del pedido: ./{ejecutable vmx} {archivo.vmx} [-d]\n");
 }
