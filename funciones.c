@@ -36,7 +36,19 @@ void inst_sub (int reg[], char mem[], short int seg[][2]) {
     set_valor(opA, resta, reg, mem, seg);
     actualizarCC(reg,opA,carry,overflow);
 }
-void inst_mul (int reg[], char mem[], short int seg[][2]);
+void inst_mul (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[2], reg,mem, seg);
+    int opB = get_valor(reg[3], reg,mem, seg);
+    int carry = 0;
+    int overflow = 0;
+    long long producto64 = opA * opB;
+    int producto32 = (int)producto64;
+    if (producto64 == producto32) {
+        overflow = 1;
+    }
+    actualizarCC(reg,producto32,carry,overflow);
+    set_valor(opA, producto32, reg, mem, seg);
+}
 void inst_div (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[2], reg,mem, seg);
     int opB = get_valor(reg[3], reg,mem, seg);
