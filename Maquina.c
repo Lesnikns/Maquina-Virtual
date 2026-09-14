@@ -67,7 +67,7 @@ int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[]
 
     if (tipo == 2) { // inmediato
         short inmediato = (short)(valor_crudo & 0xFFFF); 
-        return (int)inmediato;
+        return (int) inmediato;
     }
 
     if (tipo == 3) { // memoria

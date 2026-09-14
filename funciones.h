@@ -1,4 +1,3 @@
-
 void inst_sys (int reg[], char mem[], short int seg[][2]);
 void inst_jmp (int reg[], char mem[], short int seg[][2]);
 void inst_jp  (int reg[], char mem[], short int seg[][2]);
@@ -28,3 +27,5 @@ void inst_sar (int reg[], char mem[], short int seg[][2]);
 void inst_ldl (int reg[], char mem[], short int seg[][2]);
 void inst_ldh (int reg[], char mem[], short int seg[][2]);
 void inst_rnd (int reg[], char mem[], short int seg[][2]);
+
+void devuelveNotacionBinaria(int nro,char *s); //para impresion numeros en binario
