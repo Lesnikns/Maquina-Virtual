@@ -27,42 +27,17 @@ const char* nom_regs[32] = {
     "RES", "RES"
 };
 
-void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]) {
-    
-    int tipo = (unsigned int)operando_empaquetado >> 24; 
-    int valor_crudo = operando_empaquetado & 0x00FFFFFF; 
 
-    if (tipo == 1) { 
-        int reg = valor_crudo & 0x1F; 
-        registros[reg] = valor_a_guardar; 
-        return;
-    }
-
-    if (tipo == 3) { 
-        short offset = (short)(valor_crudo >> 8);
-        int reg = valor_crudo & 0x1F;
-        int puntero_logico = registros[reg];
-        int segmento = (puntero_logico >> 16) & 0xFFFF;
-        int offset_base = puntero_logico & 0xFFFF;
-        int dir_fisica = tablaSegmentos[segmento][0] + offset_base + offset;
-        memoriaPrincipal[dir_fisica]     = (valor_a_guardar >> 24) & 0xFF;
-        memoriaPrincipal[dir_fisica + 1] = (valor_a_guardar >> 16) & 0xFF;
-        memoriaPrincipal[dir_fisica + 2] = (valor_a_guardar >> 8) & 0xFF;
-        memoriaPrincipal[dir_fisica + 3] = valor_a_guardar & 0xFF;
-        return;
-    }
-    
-}
 
 int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]) {
-    int tipo = (unsigned int)operando_empaquetado >> 24; 
-    int valor_crudo = operando_empaquetado & 0x00FFFFFF; 
+    int tipo = (unsigned int)operando_empaquetado >> 24;
+    int valor_crudo = operando_empaquetado & 0x00FFFFFF;
 
     if (tipo == 0) return 0; // ningun operando
 
     if (tipo == 1) { // registro
-        int reg = valor_crudo & 0x1F; 
-        return registros[reg];       
+        int reg = valor_crudo & 0x1F;
+        return registros[reg];
     }
 
     if (tipo == 2) { // inmediato
@@ -90,20 +65,6 @@ int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[]
     }
 
     return 0;
-}
-
-void actualizarCC(int registros[], int resultado, int carry, int overflow) {
-    
-    int n = (resultado < 0) ? 1 : 0;
-    int z = (resultado == 0) ? 1 : 0;
-    
-   
-    registros[17] &= 0x0FFFFFFF; 
-    
-    registros[17] |= ((unsigned int)n << 31);
-    registros[17] |= (z << 30);
-    registros[17] |= (carry << 29);
-    registros[17] |= (overflow << 28);
 }
 
 void imprimirOperando(int tipo, int valor, const char* nom_regs[]) { // esta funcion es para dar el formato segun el tipo de opa y opb
