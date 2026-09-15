@@ -139,6 +139,8 @@ void imprimirOperando(int tipo, int valor, const char* nom_regs[]) { // esta fun
 
 void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int tablaSegmentos[8][2], int flag_d) {
     while (1) {
+        if (registros[0] == -1) break;
+
         int segmento_ip = (registros[0] >> 16) & 0xFFFF;
         int offset_ip = registros[0] & 0xFFFF;
 
@@ -152,10 +154,6 @@ void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int ta
         if (offset_ip >= tablaSegmentos[segmento_ip][1]) { 
              printf("FALLO DE SEGMENTO: Acceso fuera de limites.\n");
              exit(1); 
-        }
-        
-        if (registros[0] == -1) { // stop
-             break; 
         }
 
         unsigned char primer_byte = memoriaPrincipal[pc];
@@ -172,46 +170,46 @@ void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int ta
             tipoB = (primer_byte >> 6) & 0x03;    
         }
 
-        registros[1] = opcode;// pasamos a opc el codigo de operacion
-        registros[0] += (1 + tipoA + tipoB); // movemos ip
+        registros[1] = opcode; //pasamos a opc el codigo de operacion
+        registros[0] += (1 + tipoA + tipoB); //movemos ip
         
         int valorA = 0, valorB = 0;
         int offset_actual = pc + 1; 
         
-        if (tipoA == 1) { // registro 01
-            valorA = memoriaPrincipal[offset_actual] & 0xFF; 
+        //primero se leera opA, luego opB
+        if (tipoB == 1) {
+            valorB = memoriaPrincipal[offset_actual] & 0xFF;
             offset_actual += 1;
         } 
-        else if (tipoA == 2) { // inmediato 02
-            short inmediato = ((memoriaPrincipal[offset_actual] & 0xFF) << 8) | (memoriaPrincipal[offset_actual + 1] & 0xFF);
-            valorA = (int)inmediato; 
-            offset_actual += 2;
-        } 
-        else if (tipoA == 3) { // memoria 03
-            valorA = ((memoriaPrincipal[offset_actual] & 0xFF) << 16) | 
-                     ((memoriaPrincipal[offset_actual + 1] & 0xFF) << 8) | 
-                     (memoriaPrincipal[offset_actual + 2] & 0xFF);
-            offset_actual += 3;
-        }
-            
-        if (tipoB == 1) { 
-            valorB = memoriaPrincipal[offset_actual] & 0xFF;
-            offset_actual++;
-        } 
-        else if (tipoB == 2) { 
-            short inmediato = ((memoriaPrincipal[offset_actual] & 0xFF) << 8) | (memoriaPrincipal[offset_actual + 1] & 0xFF);
-            valorB = (int)inmediato;
-            offset_actual+=2;
-        } 
-        else if (tipoB == 3) { 
-            valorB = ((memoriaPrincipal[offset_actual] & 0xFF) << 16) | 
-                     ((memoriaPrincipal[offset_actual + 1] & 0xFF) << 8) | 
-                     (memoriaPrincipal[offset_actual + 2] & 0xFF);
-            offset_actual+=3;
-        }
+        else
+            if (tipoB == 2) {
+                short inm = ((memoriaPrincipal[offset_actual]&0xFF)<<8)|(memoriaPrincipal[offset_actual+1]&0xFF);
+                valorB=(int)inm; 
+                offset_actual+=2;
+            } 
+            else
+                if (tipoB == 3) {
+                    valorB = ((memoriaPrincipal[offset_actual]&0xFF)<<16)|((memoriaPrincipal[offset_actual+1]&0xFF)<<8)|(memoriaPrincipal[offset_actual+2]&0xFF);
+                    offset_actual+=3;
+                }
 
+        if (tipoA == 1) {
+            valorA = memoriaPrincipal[offset_actual] & 0xFF;
+            offset_actual += 1;
+        } 
+        else 
+            if (tipoA == 2) {
+                short inm = ((memoriaPrincipal[offset_actual]&0xFF)<<8)|(memoriaPrincipal[offset_actual+1]&0xFF);
+                valorA=(int)inm;
+                offset_actual+=2;
+            } 
+        else 
+            if (tipoA == 3) {
+                valorA = ((memoriaPrincipal[offset_actual]&0xFF)<<16)|((memoriaPrincipal[offset_actual+1]&0xFF)<<8)|(memoriaPrincipal[offset_actual+2]&0xFF);
+                offset_actual+=3;
+            }
         
-        // dissasembler
+        //dissasembler
         if (flag_d) {
             printf("[%04X] ", pc);
             
