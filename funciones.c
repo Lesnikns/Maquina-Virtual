@@ -3,11 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-void inst_sys (int reg[], char mem[], short int seg[][2]);
-void inst_jmp (int reg[], char mem[], short int seg[][2]);
-void inst_jp  (int reg[], char mem[], short int seg[][2]);
-void inst_jn  (int reg[], char mem[], short int seg[][2]);
-void inst_jz  (int reg[], char mem[], short int seg[][2]);
 void inst_sys (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[2],reg,mem,seg);
     int cantByte = reg[12] >> 16; //cantidad de bytes a leer/escribir
@@ -34,9 +29,11 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                     case 0x0: //imprime en decimal
                         scanf("%d", &valor_a_guardar);
                         break;
-                    case 0x1: //caracter
-                        scanf("%c", &valor_a_guardar);
-                        break;
+                    case 0x2: {//caracter
+                        char c;
+                        scanf(" %c", &c); //espacio antes de %c para ignorar
+                        valor_a_guardar = (int)c;
+                    };break;
                     case 0x4: //octal
                         scanf("%o", &valor_a_guardar);
                         break;
@@ -69,7 +66,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                         case 0x0: //imprime en decimal
                             printf("%d", valor_a_escribir);
                             break;
-                        case 0x1: //caracter
+                        case 0x2: //caracter
                             printf("%c", valor_a_escribir);
                             break;
                         case 0x4: //octal
@@ -110,12 +107,12 @@ void inst_jz  (int reg[], char mem[], short int seg[][2]){
         set_valor(reg[0], op, reg, mem, seg); //carga en ip el valor de op
     }
 }
-void inst_jc  (int reg[], char mem[], short int seg[][2]);
-void inst_jv  (int reg[], char mem[], short int seg[][2]);
-void inst_jnp (int reg[], char mem[], short int seg[][2]);
-void inst_jnn (int reg[], char mem[], short int seg[][2]);
-void inst_jnz (int reg[], char mem[], short int seg[][2]);
-void inst_not (int reg[], char mem[], short int seg[][2]);
+void inst_jc  (int reg[], char mem[], short int seg[][2]){}
+void inst_jv  (int reg[], char mem[], short int seg[][2]){}
+void inst_jnp (int reg[], char mem[], short int seg[][2]){}
+void inst_jnn (int reg[], char mem[], short int seg[][2]){}
+void inst_jnz (int reg[], char mem[], short int seg[][2]){}
+void inst_not (int reg[], char mem[], short int seg[][2]){}
 void inst_invalida(int reg[], char mem[], short int seg[][2]) {
     printf("INSTRUCCION INVALIDA");
 }
@@ -209,7 +206,7 @@ void inst_and (int reg[], char mem[], short int seg[][2]) {
 
     actualizarCC(reg, resultado, 0, 0);
 }
-void inst_or  (int reg[], char mem[], short int seg[][2]);
+void inst_or  (int reg[], char mem[], short int seg[][2]){}
 void inst_xor (int reg[], char mem[], short int seg[][2]) {
     
     int op_a = get_valor(reg[2],reg,mem,seg);
@@ -220,7 +217,7 @@ void inst_xor (int reg[], char mem[], short int seg[][2]) {
 
     actualizarCC(reg, resultado, 0, 0);
 }
-void inst_swap(int reg[], char mem[], short int seg[][2]);
+void inst_swap(int reg[], char mem[], short int seg[][2]){}
 void inst_shl (int reg[], char mem[], short int seg[][2]) {
     
     int op_a = get_valor(reg[2],reg,mem,seg);
@@ -233,8 +230,8 @@ void inst_shl (int reg[], char mem[], short int seg[][2]) {
     int overflow = ((op_a > 0 && resultado < 0) || (op_a < 0 && resultado > 0)) ? 1 : 0;
     actualizarCC(reg, resultado, carry, overflow);
 }
-void inst_shr (int reg[], char mem[], short int seg[][2]);
-void inst_sar (int reg[], char mem[], short int seg[][2]);
+void inst_shr (int reg[], char mem[], short int seg[][2]){}
+void inst_sar (int reg[], char mem[], short int seg[][2]){}
 void inst_ldl (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[2],reg,mem,seg);
     int op_b = get_valor(reg[3],reg,mem,seg);
@@ -243,7 +240,7 @@ void inst_ldl (int reg[], char mem[], short int seg[][2]) {
     int resultado = (op_a & 0xFFFF0000) | (op_b & 0x0000FFFF); 
     set_valor(reg[2], resultado, reg, mem, seg);
 }
-void inst_ldh (int reg[], char mem[], short int seg[][2]);
+void inst_ldh (int reg[], char mem[], short int seg[][2]){}
 void inst_rnd (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[2],reg,mem,seg);
     int op_b = get_valor(reg[3],reg,mem,seg);

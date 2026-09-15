@@ -27,46 +27,6 @@ const char* nom_regs[32] = {
     "RES", "RES"
 };
 
-
-
-int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]) {
-    int tipo = (unsigned int)operando_empaquetado >> 24;
-    int valor_crudo = operando_empaquetado & 0x00FFFFFF;
-
-    if (tipo == 0) return 0; // ningun operando
-
-    if (tipo == 1) { // registro
-        int reg = valor_crudo & 0x1F;
-        return registros[reg];
-    }
-
-    if (tipo == 2) { // inmediato
-        short inmediato = (short)(valor_crudo & 0xFFFF); 
-        return (int) inmediato;
-    }
-
-    if (tipo == 3) { // memoria
-        short offset = (short)(valor_crudo >> 8);
-        int reg = valor_crudo & 0x1F;
-
-        int puntero_logico = registros[reg];
-        int segmento = (puntero_logico >> 16) & 0xFFFF;
-        int offset_base = puntero_logico & 0xFFFF;
-
-        int dir_fisica = tablaSegmentos[segmento][0] + offset_base + offset;
-
-        
-        int dato = ((memoriaPrincipal[dir_fisica] & 0xFF) << 24) | 
-                   ((memoriaPrincipal[dir_fisica + 1] & 0xFF) << 16) | 
-                   ((memoriaPrincipal[dir_fisica + 2] & 0xFF) << 8) | 
-                   (memoriaPrincipal[dir_fisica + 3] & 0xFF);
-                   
-        return dato;
-    }
-
-    return 0;
-}
-
 void imprimirOperando(int tipo, int valor, const char* nom_regs[]) { // esta funcion es para dar el formato segun el tipo de opa y opb
 
     if (tipo == 1) { 
