@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "console": "internalConsole",
+    "externalConsole": true,
+    "configurations": [
+        {
+            "name": "C Launch (Prompt for Args)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${fileDirname}/${fileBasenameNoExtension}",
+            "args": [            
+                "vmt",  
+                "-d"         
+            ],
+            "cwd": "${workspaceFolder}",
+            "MIMode": "gdb"
+        }
+    ]
+}

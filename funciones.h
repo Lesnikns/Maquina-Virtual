@@ -40,3 +40,5 @@ void inst_rnd (int reg[], char mem[], short int seg[][2]);
 void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]);
 int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]);
 void actualizarCC(int registros[], int resultado, int carry, int overflow);
+
+void devuelveNotacionBinaria(int nro,char *s); //para impresion numeros en binario
