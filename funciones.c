@@ -2,56 +2,129 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+int saltoValido(int destino, short int seg[][2]) {
+    int limiteCodeSeg = seg[0][1];
 
+    if (destino < 0 || destino >= limiteCodeSeg) {
+        return 0;
+    }
+    return 1;
+}
 void inst_sys (int reg[], char mem[], short int seg[][2]);
 void inst_jmp (int reg[], char mem[], short int seg[][2]);
 void inst_jp  (int reg[], char mem[], short int seg[][2]);
 void inst_jn  (int reg[], char mem[], short int seg[][2]);
 void inst_jz  (int reg[], char mem[], short int seg[][2]);
-void inst_jc  (int reg[], char mem[], short int seg[][2]);
-void inst_jv  (int reg[], char mem[], short int seg[][2]);
-void inst_jnp (int reg[], char mem[], short int seg[][2]);
-void inst_jnn (int reg[], char mem[], short int seg[][2]);
-void inst_jnz (int reg[], char mem[], short int seg[][2]);
-void inst_not (int reg[], char mem[], short int seg[][2]);
+void inst_jc  (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg, mem, seg);
+    int carry = (reg[CC] >> 29) & 1;
+    if (carry) {
+        if (saltoValido(opA, seg))
+            reg[IP] = opA;
+        else {
+            printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
+            exit(1);
+        }
+    }
+}
+void inst_jv  (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int overflow = (reg[CC] >> 28) & 1;
+    if (overflow) {
+        if (saltoValido(opA, seg))
+            reg[IP] = opA;
+        else {
+            printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
+            exit(1);
+        }
+    }
+}
+void inst_jnp (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int negativo = (reg[CC] >> 31) & 1;
+    int zero = (reg[CC] >> 30) & 1;
+
+    if (zero || negativo) {
+        if (saltoValido(opA, seg))
+            reg[IP] = opA;
+        else {
+            printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
+            exit(1);
+        }
+    }
+}
+void inst_jnn (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int negativo = (reg[CC] >> 31) & 1;
+
+    if (!negativo) {
+        if (saltoValido(opA, seg))
+            reg[IP] = opA;
+        else {
+            printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
+            exit(1);
+        }
+    }
+}
+void inst_jnz (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int zero = (reg[CC] >> 30) & 1;
+
+    if (!zero) {
+        if (saltoValido(opA, seg))
+            reg[IP] = opA;
+        else {
+            printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
+            exit(1);
+        }
+    }
+}
+void inst_not (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int resultado = ~opA;
+
+    set_valor(reg[OP1], resultado, reg, mem, seg);
+    actualizarCC(reg,resultado,0,0);
+}
 void inst_invalida(int reg[], char mem[], short int seg[][2]){
     printf("INSTRUCCION INVALIDA");
+    exit(1);
 }
 void inst_stop(int reg[], char mem[], short int seg[][2]);
 void inst_mov (int reg[], char mem[], short int seg[][2]);
 void inst_add (int reg[], char mem[], short int seg[][2]);
 void inst_sub (int reg[], char mem[], short int seg[][2]) {
-    int opA = get_valor(reg[2], reg,mem, seg);
-    int opB = get_valor(reg[3], reg,mem, seg);
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int opB = get_valor(reg[OP2], reg,mem, seg);
     int resta = opA - opB;
     int carry = 0;
     int overflow = 0;
-    if (opB > opA)
+    if ((unsigned int)opB > (unsigned int)opA)
         carry = 1;
     if ((opA > 0 && opB < 0 && resta < 0) ||
         (opA < 0 && opB > 0 && resta > 0)) {
         overflow = 1;
         }
 
-    set_valor(opA, resta, reg, mem, seg);
-    actualizarCC(reg,opA,carry,overflow);
+    set_valor(reg[OP1], resta, reg, mem, seg);
+    actualizarCC(reg,resta,carry,overflow);
 }
 void inst_mul (int reg[], char mem[], short int seg[][2]) {
-    int opA = get_valor(reg[2], reg,mem, seg);
-    int opB = get_valor(reg[3], reg,mem, seg);
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int opB = get_valor(reg[OP2], reg,mem, seg);
     int carry = 0;
     int overflow = 0;
     long long producto64 = opA * opB;
     int producto32 = (int)producto64;
-    if (producto64 == producto32) {
+    if (producto64 != (long long)producto32) {
         overflow = 1;
     }
     actualizarCC(reg,producto32,carry,overflow);
-    set_valor(opA, producto32, reg, mem, seg);
+    set_valor(reg[OP1], producto32, reg, mem, seg);
 }
 void inst_div (int reg[], char mem[], short int seg[][2]) {
-    int opA = get_valor(reg[2], reg,mem, seg);
-    int opB = get_valor(reg[3], reg,mem, seg);
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int opB = get_valor(reg[OP2], reg,mem, seg);
     int cociente;
     int resto;
     if (opB == 0) {
@@ -61,8 +134,8 @@ void inst_div (int reg[], char mem[], short int seg[][2]) {
     else {
         cociente = opA / opB;
         resto = opA % opB;
-        set_valor(opA, cociente, reg, mem,seg);
-        reg[16] = resto;
+        set_valor(reg[OP1], cociente, reg, mem,seg);
+        reg[AC] = resto;
         actualizarCC(reg,cociente,0,0 );
     }
 
@@ -70,14 +143,62 @@ void inst_div (int reg[], char mem[], short int seg[][2]) {
 }
 void inst_cmp (int reg[], char mem[], short int seg[][2]);
 void inst_and (int reg[], char mem[], short int seg[][2]);
-void inst_or  (int reg[], char mem[], short int seg[][2]);
+void inst_or  (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int opB = get_valor(reg[OP2], reg,mem, seg);
+
+    int resultado = opA | opB;
+    set_valor(reg[OP1], resultado, reg, mem,seg);
+    actualizarCC(reg,resultado,0,0);
+
+}
 void inst_xor (int reg[], char mem[], short int seg[][2]);
-void inst_swap(int reg[], char mem[], short int seg[][2]);
+void inst_swap(int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int opB = get_valor(reg[OP2], reg,mem, seg);
+    set_valor(reg[OP1], opB, reg, mem,seg);
+    set_valor(reg[OP2], opA,reg, mem, seg);
+
+    actualizarCC(reg, opB, 0,0);
+}
 void inst_shl (int reg[], char mem[], short int seg[][2]);
-void inst_shr (int reg[], char mem[], short int seg[][2]);
-void inst_sar (int reg[], char mem[], short int seg[][2]);
+void inst_shr (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int opB = get_valor(reg[OP2], reg,mem, seg);
+    int carry = 0;
+    int shift = opB & 0x1F; // evito que el valor de desplacamiento supere los 32 bits para que no rompa el programa
+    unsigned int resultado = (unsigned int)opA >> shift;
+    if (shift > 0)
+        carry = (opA >> (shift - 1)) & 1; // aislo el bit que se cayo segun el desplamiento para calcular el carry
+    set_valor(reg[OP1], resultado, reg, mem,seg);
+    actualizarCC(reg, resultado,carry,0);
+
+}
+void inst_sar (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int opB = get_valor(reg[OP2], reg,mem, seg);
+    int carry = 0;
+    int shift = opB & 0x1F; // evito que el valor de desplazamiento supere los 32 bits para que no rompa el programa
+    int resultado = opA >> shift; // sigue la misma logica que shr pero como propaga signo va int directo
+
+    if (shift > 0)
+        carry = (opA >> (shift - 1)) & 1; // aislo el bit que se cayo segun el desplamiento para calcular el carry
+
+    set_valor(reg[OP1], resultado, reg, mem,seg);
+    actualizarCC(reg, resultado,carry,0);
+}
 void inst_ldl (int reg[], char mem[], short int seg[][2]);
-void inst_ldh (int reg[], char mem[], short int seg[][2]);
+void inst_ldh (int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int opB = get_valor(reg[OP2], reg,mem, seg);
+
+    int parteAlta = (opB & 0xFFFF) << 16;
+    int parteBaja = (opA & 0xFFFF);
+
+    int resultado = parteAlta | parteBaja;
+
+    set_valor(reg[OP1], resultado, reg, mem,seg);
+}
 void inst_rnd (int reg[], char mem[], short int seg[][2]);
 void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]){
 
@@ -148,10 +269,10 @@ void actualizarCC(int registros[], int resultado, int carry, int overflow) {
     int z = (resultado == 0) ? 1 : 0;
 
 
-    registros[17] &= 0x0FFFFFFF;
+    registros[CC] &= 0x0FFFFFFF;
 
-    registros[17] |= ((unsigned int)n << 31);
-    registros[17] |= (z << 30);
-    registros[17] |= (carry << 29);
-    registros[17] |= (overflow << 28);
+    registros[CC] |= ((unsigned int)n << 31);
+    registros[CC] |= (z << 30);
+    registros[CC] |= (carry << 29);
+    registros[CC] |= (overflow << 28);
 }
