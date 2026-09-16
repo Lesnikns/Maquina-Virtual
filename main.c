@@ -177,7 +177,6 @@ void lecturaArchivo(char nombre[], short int tablaSegmentos[8][2], int registros
     char version;
     char codigo;
     short int tamCod;
-    
 
     fread(identificador, sizeof(char), 5, arch);
     identificador[5] = '\0'; 
@@ -186,6 +185,8 @@ void lecturaArchivo(char nombre[], short int tablaSegmentos[8][2], int registros
 
     fread(&tamCod, sizeof(short int), 1, arch);
 
+    //printf("Identificador: %s\n", identificador);
+    //printf("Version: %d\n", version);
     
     if (strcmp(identificador, "VMX26") != 0 || version != 1) {
         printf("Error: Archivo ejecutable invalido o version no soportada.\n");
