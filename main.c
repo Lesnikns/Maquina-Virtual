@@ -233,7 +233,7 @@ int main(int argc, char*argv[]) {
 
     }
     else
-        printf("formato del pedido: ./{ejecutable} vmx {archivo.vmx} [-d]\n");
+        printf("formato del pedido: ./{ejecutable} {archivo-vmx} [-d]\n");
 
     return 0;
 }
