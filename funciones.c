@@ -1,4 +1,5 @@
 #include "funciones.h"
+#include "utilidades.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -431,15 +432,26 @@ void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], c
         int puntero_logico = registros[reg];
         int segmento = (puntero_logico >> 16) & 0xFFFF;
         int offset_base = puntero_logico & 0xFFFF;
-        int dir_fisica = tablaSegmentos[segmento][0] + offset_base + offset;
+
+
+        if (segmento < 0 || segmento > 7 || tablaSegmentos[segmento][0] == -1) {
+            printf("Fallo de segmento\n");
+            exit(1);
+        }
+        int offset_final = offset_base + offset;
+        if (offset_final < 0 || (offset_final + 3) >= tablaSegmentos[segmento][1]) {
+            printf("Fallo de segmento\n");
+            exit(1);
+        }
+        int dir_fisica = tablaSegmentos[segmento][0] + offset_final; // Usamos el offset_final acá
+
         memoriaPrincipal[dir_fisica]     = (valor_a_guardar >> 24) & 0xFF;
         memoriaPrincipal[dir_fisica + 1] = (valor_a_guardar >> 16) & 0xFF;
         memoriaPrincipal[dir_fisica + 2] = (valor_a_guardar >> 8) & 0xFF;
         memoriaPrincipal[dir_fisica + 3] = valor_a_guardar & 0xFF;
         return;
     }
-
-};
+}
 int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]) {
     int tipo = (unsigned int)operando_empaquetado >> 24;
     int valor_crudo = operando_empaquetado & 0x00FFFFFF;
@@ -463,6 +475,18 @@ int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[]
         int puntero_logico = registros[reg];
         int segmento = (puntero_logico >> 16) & 0xFFFF;
         int offset_base = puntero_logico & 0xFFFF;
+
+        if (segmento < 0 || segmento > 7 || tablaSegmentos[segmento][0] == -1) {
+            printf("Fallo de segmento\n");
+            exit(1);
+        }
+
+        int offset_final = offset_base + offset;
+        // Verificamos que los 4 bytes que vamos a leer entren en el segmento
+        if (offset_final < 0 || (offset_final + 3) >= tablaSegmentos[segmento][1]) {
+            printf("Fallo de segmento\n");
+            exit(1);
+        }
 
         int dir_fisica = tablaSegmentos[segmento][0] + offset_base + offset;
 
