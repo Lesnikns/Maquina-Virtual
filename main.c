@@ -2,83 +2,31 @@
 #include <stdlib.h>
 #include <string.h>
 #include "funciones.h"
+#include "utilidades.h"
+#include"dissasembler.h"
 #define ram 16384
 
-typedef void (*InstruccionFunc)(int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]);
+int condicionProceso(int ip, short int tablaSegmentos[8][2]) {
+    if (ip == -1) // si es stop
+        return 0;
 
-InstruccionFunc operaciones[32] = {
-    inst_sys, inst_jmp, inst_jp,  inst_jn,  inst_jz,  inst_jc,  inst_jv,  inst_jnp,  
-    inst_jnn, inst_jnz, inst_not, inst_invalida, inst_invalida, inst_invalida, inst_invalida, inst_stop, 
-    inst_mov, inst_add, inst_sub, inst_mul, inst_div, inst_cmp, inst_and, inst_or,   
-    inst_xor, inst_swap, inst_shl, inst_shr, inst_sar, inst_ldl, inst_ldh, inst_rnd  
-};
-
-const char* mnemonicos[32] = {
-    "SYS", "JMP", "JP",  "JN",  "JZ",  "JC",  "JV",  "JNP",  
-    "JNN", "JNZ", "NOT", "INV", "INV", "INV", "INV", "STOP", 
-    "MOV", "ADD", "SUB", "MUL", "DIV", "CMP", "AND", "OR",  
-    "XOR", "SWAP", "SHL", "SHR", "SAR", "LDL", "LDH", "RND"  
-};
-
-const char* nom_regs[32] = {
-    "IP", "OPC", "OP1", "OP2", "LAR", "MAR", "MBR", "RES", "RES", "RES",
-    "EAX", "EBX", "ECX", "EDX", "EEX", "EFX", "AC", "CC", "RES", "RES",
-    "RES", "RES", "RES", "RES", "RES", "RES", "CS", "DS", "RES", "RES", 
-    "RES", "RES"
-};
-
-void imprimirOperando(int tipo, int valor, const char* nom_regs[]) { // esta funcion es para dar el formato segun el tipo de opa y opb
-
-    if (tipo == 1) { 
-        printf("%s", nom_regs[valor]);
-        return; 
-    } 
-    if (tipo == 2) { 
-        printf("%d", valor);
-        return;
-    } 
-    if (tipo == 3) { 
-        short offset = (short)(valor >> 8); 
-        int reg = valor & 0x1F;             
-        
-        if (offset == 0) {
-            printf("[%s]", nom_regs[reg]);
-            return;
-        } 
-        
-        if (offset > 0) {
-            printf("[%s+%d]", nom_regs[reg], offset);
-            return;
-        } 
-        
-        if (offset < 0) {
-            printf("[%s%d]", nom_regs[reg], offset); 
-            return;
-        }
+    int segmento = (ip >> 16) & 0xFFFF;
+    int offset = ip & 0xFFFF;
+    if (segmento < 0 || segmento > 7 || tablaSegmentos[segmento][0] == -1) { // si es segmento invalido
+        return 0;
     }
+
+    if (offset >= tablaSegmentos[segmento][1]) { // si termino de procesar el codesegment
+        return 0;
+    }
+    return 1;
 }
-
 void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int tablaSegmentos[8][2], int flag_d) {
-    while (1) {
-        if (registros[0] == -1) {
-            printf("Ejecucion finalizada.\n");
-            exit(0); 
-        }
+    while (condicionProceso(registros[IP], tablaSegmentos)) {
 
-        int segmento_ip = (registros[0] >> 16) & 0xFFFF;
-        int offset_ip = registros[0] & 0xFFFF;
-
-        if (segmento_ip < 0 || segmento_ip > 7 || tablaSegmentos[segmento_ip][0] == -1) {
-             printf("FALLO DE SEGMENTO: Segmento invalido.\n");
-             exit(1);
-        }
-
+        int segmento_ip = (registros[IP] >> 16) & 0xFFFF;
+        int offset_ip = registros[IP] & 0xFFFF;
         int pc = tablaSegmentos[segmento_ip][0] + offset_ip;
-
-        if (offset_ip >= tablaSegmentos[segmento_ip][1]) { 
-             printf("FALLO DE SEGMENTO: Acceso fuera de limites.\n");
-             exit(1); 
-        }
 
         unsigned char primer_byte = memoriaPrincipal[pc];
         int opcode, tipoA, tipoB;
@@ -94,8 +42,8 @@ void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int ta
             tipoB = (primer_byte >> 6) & 0x03;    
         }
 
-        registros[1] = opcode; //pasamos a opc el codigo de operacion
-        registros[0] += (1 + tipoA + tipoB); //movemos ip
+        registros[OPC] = opcode; //pasamos a opc el codigo de operacion
+        registros[IP] += (1 + tipoA + tipoB); //movemos ip
         
         int valorA = 0, valorB = 0;
         int offset_actual = pc + 1; 
@@ -132,38 +80,19 @@ void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int ta
                 valorA = ((memoriaPrincipal[offset_actual]&0xFF)<<16)|((memoriaPrincipal[offset_actual+1]&0xFF)<<8)|(memoriaPrincipal[offset_actual+2]&0xFF);
                 offset_actual+=3;
             }
-        
-        //dissasembler
-        if (flag_d) {
-            printf("[%04X] ", pc);
-            
-            int tam_instruccion = 1 + tipoA + tipoB;
-            for(int j = 0; j < tam_instruccion; j++) {
-                printf("%02X ", (unsigned char)memoriaPrincipal[pc + j]);
-            }
-            
-            if (tam_instruccion < 6) printf("\t"); 
-            
-            printf("| %s ", mnemonicos[opcode]);
-
-            if (tipoA != 0) imprimirOperando(tipoA, valorA, nom_regs);
-            
-            if (tipoB != 0) {
-                printf(", ");
-                imprimirOperando(tipoB, valorB, nom_regs);
-            }
-            printf("\n");
-        }
 
         if (tipoA == 0) 
-            registros[2] = 0; 
+            registros[OP1] = 0;
         else 
-            registros[2] = (tipoA << 24) | (valorA & 0x00FFFFFF);
-
+            registros[OP1] = (tipoA << 24) | (valorA & 0x00FFFFFF);
         if (tipoB == 0) 
-            registros[3] = 0; 
+            registros[OP2] = 0;
         else 
-            registros[3] = (tipoB << 24) | (valorB & 0x00FFFFFF);
+            registros[OP2] = (tipoB << 24) | (valorB & 0x00FFFFFF);
+
+        if (flag_d) {
+            imprimirDisassembler(pc, opcode, tipoA, tipoB, valorA, valorB, memoriaPrincipal);
+        }
 
         operaciones[opcode](registros, memoriaPrincipal, tablaSegmentos);
 
