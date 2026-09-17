@@ -60,7 +60,10 @@ void imprimirOperando(int tipo, int valor, const char* nom_regs[]) { // esta fun
 
 void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int tablaSegmentos[8][2], int flag_d) {
     while (1) {
-        if (registros[0] == -1) break;
+        if (registros[0] == -1) {
+            printf("Ejecucion finalizada.\n");
+            exit(0); 
+        }
 
         int segmento_ip = (registros[0] >> 16) & 0xFFFF;
         int offset_ip = registros[0] & 0xFFFF;

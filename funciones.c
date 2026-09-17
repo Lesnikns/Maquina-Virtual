@@ -117,7 +117,7 @@ void inst_invalida(int reg[], char mem[], short int seg[][2]) {
     printf("INSTRUCCION INVALIDA");
 }
 void inst_stop(int reg[], char mem[], short int seg[][2]) {
-    set_valor(reg[0], -1, reg, mem, seg); //carga en ip, -1 para indicar que termino la ejecucion del programa
+    reg[0] = -1; //carga en ip, -1 para indicar que termino la ejecucion del programa
 }
 void inst_mov (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[2],reg,mem,seg);
