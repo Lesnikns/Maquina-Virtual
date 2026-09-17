@@ -1,3 +1,5 @@
+
+int saltoValido(int destino, short int seg[][2]);
 void inst_sys (int reg[], char mem[], short int seg[][2]);
 void inst_jmp (int reg[], char mem[], short int seg[][2]);
 void inst_jp  (int reg[], char mem[], short int seg[][2]);
