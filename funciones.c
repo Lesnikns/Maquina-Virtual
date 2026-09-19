@@ -213,7 +213,7 @@ void inst_invalida(int reg[], char mem[], short int seg[][2]){
     exit(1);
 }
 void inst_stop(int reg[], char mem[], short int seg[][2]) {
-    set_valor(reg[IP], -1, reg, mem, seg); //carga en ip, -1 para indicar que termino la ejecucion del programa
+    reg[IP] = -1; //carga en ip, -1 para indicar que termino la ejecucion del programa
 }
 void inst_mov (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[OP1],reg,mem,seg);
