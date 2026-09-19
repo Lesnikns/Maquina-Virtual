@@ -12,7 +12,7 @@
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
             "args": [            
-                "vmt",  
+                "prueba.vmx",  
                 "-d"         
             ],
             "cwd": "${workspaceFolder}",
