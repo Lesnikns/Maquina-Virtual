@@ -1,4 +1,4 @@
-#include "funciones.h"
+#include "instrucciones.h"
 #include "utilidades.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,7 +70,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                     printf("%s\n", s);
                     free(s);
                 }
-                else
+                else {
                     switch(reg[EAX] & 0xF){
                         case 0x0: //imprime en decimal
                             printf("%d\n", valor_a_escribir);
@@ -85,6 +85,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                             printf("%X\n", valor_a_escribir);
                             break;
                     }
+                }
             }
         }
 }
