@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "funciones.h"
+#include "instrucciones.h"
 #include "utilidades.h"
-#include"dissasembler.h"
+#include"disassembler.h"
 #define ram 16384
 
 int condicionProceso(int ip, short int tablaSegmentos[8][2]) {
