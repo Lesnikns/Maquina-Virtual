@@ -12,8 +12,8 @@
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
             "args": [            
-                "prueba_completa.vmx"
-                //,"-d"       
+                "prueba_todas.vmx"
+                ,"-d"       
             ],
             "cwd": "${workspaceFolder}",
             "MIMode": "gdb"

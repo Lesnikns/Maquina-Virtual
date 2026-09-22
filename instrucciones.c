@@ -218,7 +218,7 @@ void inst_stop(int reg[], char mem[], short int seg[][2]) {
     reg[IP] = -1; //carga en ip, -1 para indicar que termino la ejecucion del programa
 }
 void inst_mov (int reg[], char mem[], short int seg[][2]) {
-    int op_a = get_valor(reg[OP1],reg,mem,seg);
+    //int op_a = get_valor(reg[OP1],reg,mem,seg);
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
     set_valor(reg[OP1], op_b, reg, mem, seg); //carga en A el valor de B
