@@ -67,22 +67,22 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                 if(((reg[EAX] & 0xF0) == 0x10)){ //imprime en binario
                     char *s = (char *)malloc(sizeof(valor_a_escribir)*8+1);
                     devuelveNotacionBinaria(valor_a_escribir,s);
-                    printf("%s", s);
+                    printf("%s\n", s);
                     free(s);
                 }
                 else
                     switch(reg[EAX] & 0xF){
                         case 0x0: //imprime en decimal
-                            printf("%d", valor_a_escribir);
+                            printf("%d\n", valor_a_escribir);
                             break;
                         case 0x2: //caracter
-                            printf("%c", valor_a_escribir);
+                            printf("%c\n", valor_a_escribir);
                             break;
                         case 0x4: //octal
-                            printf("%o", valor_a_escribir);
+                            printf("%o\n", valor_a_escribir);
                             break;
                         case 0x8: //hexadecimal
-                            printf("%X", valor_a_escribir);
+                            printf("%X\n", valor_a_escribir);
                             break;
                     }
             }
@@ -91,19 +91,20 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
 void inst_jmp (int reg[], char mem[], short int seg[][2]) {
     int op = get_valor(reg[OP1],reg,mem,seg);
     if (saltoValido(op, seg))
-        set_valor(reg[IP], op, reg, mem, seg); //carga en ip el valor de op, bien hecho?
+        reg[IP] = op; //carga en ip el valor de op
     else {
         printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
         exit(1);
     }
 }
 void inst_jp  (int reg[], char mem[], short int seg[][2]) {
-    int n = reg[CC] & 0x0FFFFFFF >> 31 & 0x1; //bit de signo negativo
+    int n = (reg[CC] >> 31) & 0x1; //bit de signo negativo
+    int z = (reg[CC] >> 30) & 0x1; //bit de cero
     
-    if(n == 0){ //si el bit de signo negativo es 0, entonces es positivo
+    if(n == 0 && z == 0){ //bit de signo negativo es 0 y bit de cero es 0, entonces es positivo
         int op = get_valor(reg[OP1],reg,mem,seg);
         if (saltoValido(op, seg))
-            set_valor(reg[IP], op, reg, mem, seg); //carga en ip el valor de op
+            reg[IP] = op; //carga en ip el valor de op
         else{
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
@@ -112,12 +113,12 @@ void inst_jp  (int reg[], char mem[], short int seg[][2]) {
     }
 }
 void inst_jn  (int reg[], char mem[], short int seg[][2]) {
-    int n = reg[CC] & 0x0FFFFFFF >> 31 & 0x1; //bit de signo negativo
+    int n = (reg[CC] >> 31) & 0x1; //bit de signo negativo
 
     if(n == 1){ //si el bit de signo negativo es 1, entonces es negativo
         int op = get_valor(reg[OP1],reg,mem,seg);
         if (saltoValido(op, seg))
-            set_valor(reg[IP], op, reg, mem, seg); //carga en ip el valor de op
+            reg[IP] = op; //carga en ip el valor de op
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
@@ -125,12 +126,12 @@ void inst_jn  (int reg[], char mem[], short int seg[][2]) {
     }
 }
 void inst_jz  (int reg[], char mem[], short int seg[][2]){
-    int z = reg[CC] & 0x0FFFFFFF >> 30 & 0x1; //bit de cero
+    int z = (reg[CC] >> 30) & 0x1; //bit de cero
 
-    if(z == 0){ //si el bit de cero es 0, entonces es diferente de cero
+    if(z == 1){ //si el bit de cero es 1, entonces el numero es cero
         int op = get_valor(reg[2],reg,mem,seg);
         if (saltoValido(op, seg))
-            set_valor(reg[IP], op, reg, mem, seg); //carga en ip el valor de op
+            reg[IP] = op; //carga en ip el valor de op
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
@@ -142,7 +143,7 @@ void inst_jc  (int reg[], char mem[], short int seg[][2]) {
     int carry = (reg[CC] >> 29) & 1;
     if (carry) {
         if (saltoValido(opA, seg))
-            set_valor(reg[IP], opA, reg, mem, seg);
+            reg[IP] = opA;
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
@@ -154,7 +155,7 @@ void inst_jv  (int reg[], char mem[], short int seg[][2]) {
     int overflow = (reg[CC] >> 28) & 1;
     if (overflow) {
         if (saltoValido(opA, seg))
-            set_valor(reg[IP], opA, reg, mem, seg);
+            reg[IP] = opA;
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
@@ -168,7 +169,7 @@ void inst_jnp (int reg[], char mem[], short int seg[][2]) {
 
     if (zero || negativo) {
         if (saltoValido(opA, seg))
-            set_valor(reg[IP], opA, reg, mem, seg);
+            reg[IP] = opA;
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
@@ -181,7 +182,7 @@ void inst_jnn (int reg[], char mem[], short int seg[][2]) {
 
     if (!negativo) {
         if (saltoValido(opA, seg))
-            set_valor(reg[IP], opA, reg, mem, seg);
+            reg[IP] = opA;
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
@@ -194,7 +195,7 @@ void inst_jnz (int reg[], char mem[], short int seg[][2]) {
 
     if (!zero) {
         if (saltoValido(opA, seg))
-            set_valor(reg[IP], opA, reg, mem, seg);
+            reg[IP] = opA;
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
@@ -209,7 +210,7 @@ void inst_not (int reg[], char mem[], short int seg[][2]) {
     actualizarCC(reg,resultado,0,0);
 }
 void inst_invalida(int reg[], char mem[], short int seg[][2]){
-    printf("INSTRUCCION INVALIDA");
+    printf("INSTRUCCION INVALIDA\n");
     exit(1);
 }
 void inst_stop(int reg[], char mem[], short int seg[][2]) {
@@ -268,7 +269,7 @@ void inst_div (int reg[], char mem[], short int seg[][2]) {
     int cociente;
     int resto;
     if (opB == 0) {
-        printf("IMPOSIBLE DIVIDIR POR CERO");
+        printf("IMPOSIBLE DIVIDIR POR CERO\n");
         exit(1);
     }
     cociente = opA / opB;

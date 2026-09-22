@@ -93,8 +93,8 @@ void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int ta
         if (flag_d) {
             imprimirDisassembler(pc, opcode, tipoA, tipoB, valorA, valorB, memoriaPrincipal);
         }
-
-        operaciones[opcode](registros, memoriaPrincipal, tablaSegmentos);
+        
+        operaciones[opcode](registros, memoriaPrincipal, tablaSegmentos); //como hacer para separar el ciclo de solo impresion en assembler de ciclo con calculo de logica en codigo??
 
     }
 }
@@ -159,7 +159,11 @@ int main(int argc, char*argv[]) {
     if(argc >= 2 && argc <= 3){
         if(argc == 3 && strcmp(argv[2],"-d") == 0){
             flag_d = 1;
+            iniciaSegmentos(tablaSegmentos);
+            lecturaArchivo(argv[1], tablaSegmentos, registros, memoriaPrincipal); 
+            ejecutarProceso(memoriaPrincipal, registros, tablaSegmentos, flag_d);
         }
+        flag_d = 0;
         iniciaSegmentos(tablaSegmentos);
         lecturaArchivo(argv[1], tablaSegmentos, registros, memoriaPrincipal); 
         ejecutarProceso(memoriaPrincipal, registros, tablaSegmentos, flag_d);
