@@ -218,7 +218,7 @@ void inst_stop(int reg[], char mem[], short int seg[][2]) {
     reg[IP] = -1; //carga en ip, -1 para indicar que termino la ejecucion del programa
 }
 void inst_mov (int reg[], char mem[], short int seg[][2]) {
-    int op_a = get_valor(reg[OP1],reg,mem,seg);
+    //int op_a = get_valor(reg[OP1],reg,mem,seg);
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
     set_valor(reg[OP1], op_b, reg, mem, seg); //carga en A el valor de B
@@ -239,10 +239,8 @@ void inst_sub (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int opB = get_valor(reg[OP2], reg,mem, seg);
     int resta = opA - opB;
-    int carry = 0;
     int overflow = 0;
-    if ((unsigned int)opB > (unsigned int)opA)
-        carry = 1;
+    int carry = (opA < opB) ? 1 : 0;
     if ((opA > 0 && opB < 0 && resta < 0) ||
         (opA < 0 && opB > 0 && resta > 0)) {
         overflow = 1;
@@ -254,14 +252,12 @@ void inst_sub (int reg[], char mem[], short int seg[][2]) {
 void inst_mul (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int opB = get_valor(reg[OP2], reg,mem, seg);
-    int carry = 0;
-    int overflow = 0;
-    long long producto64 = opA * opB;
+
+    long long producto64 = (long long)opA * opB;   // <- casteo antes de multiplicar
     int producto32 = (int)producto64;
-    if (producto64 != (long long)producto32) {
-        overflow = 1;
-    }
-    actualizarCC(reg,producto32,carry,overflow);
+    int desborda = (producto64 != (long long)producto32) ? 1 : 0; //si no entra en 32 bits, hay ambos y carry y overflow a la vez
+
+    actualizarCC(reg, producto32, desborda, desborda);
     set_valor(reg[OP1], producto32, reg, mem, seg);
 }
 void inst_div (int reg[], char mem[], short int seg[][2]) {
