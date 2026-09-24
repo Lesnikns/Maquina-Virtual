@@ -274,7 +274,6 @@ void inst_mul(int reg[], char mem[], short int seg[][2]) {
     set_valor(reg[OP1], res32_signed, reg, mem, seg);
     actualizarCC(reg, res32_signed, carry, overflow);
 }
-
 void inst_div(int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg, mem, seg);
     int opB = get_valor(reg[OP2], reg, mem, seg);
