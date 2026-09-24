@@ -12,12 +12,13 @@ int condicionProceso(int ip, short int tablaSegmentos[8][2]) {
 
     int segmento = (ip >> 16) & 0xFFFF;
     int offset = ip & 0xFFFF;
-    if (segmento < 0 || segmento > 7 || tablaSegmentos[segmento][0] == -1) { // si es segmento invalido
-        return 0;
+    if (segmento < 0 || segmento > 7 || tablaSegmentos[segmento][0] == -1) {
+        printf("FALLO DE SEGMENTO: Segmento invalido.\n");
+        exit(1);
     }
-
-    if (offset >= tablaSegmentos[segmento][1]) { // si termino de procesar el codesegment
-        return 0;
+    if (offset >= tablaSegmentos[segmento][1]) {
+        printf("FALLO DE SEGMENTO: Acceso fuera de limites.\n");
+        exit(1);
     }
     return 1;
 }
@@ -115,7 +116,10 @@ void lecturaArchivo(char nombre[], short int tablaSegmentos[8][2], int registros
 
     fread(&version, sizeof(char), 1, arch);
 
-    fread(&tamCod, sizeof(short int), 1, arch);
+    //fread(&tamCod, sizeof(short int), 1, arch); //mal, lee bytes forzado como little endian, cuando deberia ser big endian, por eso se hace lectura byte a byte
+    unsigned char tamCod_bytes[2];
+    fread(tamCod_bytes, sizeof(char), 2, arch);
+    tamCod = (tamCod_bytes[0] << 8) | tamCod_bytes[1];
 
     //printf("Identificador: %s\n", identificador);
     //printf("Version: %d\n", version);
@@ -128,6 +132,9 @@ void lecturaArchivo(char nombre[], short int tablaSegmentos[8][2], int registros
     tablaSegmentos[0][0] = 0;
     tablaSegmentos[0][1] = tablaSegmentos[1][0] = tamCod;
     tablaSegmentos[1][1] = ram - tamCod;
+
+    //printf("DEBUG: tamCod=%d, seg[1][0]=%d, seg[1][1]=%d\n", tamCod, tablaSegmentos[1][0], tablaSegmentos[1][1]);
+    
     int i = 0;
     for(i=0; i < tamCod; i++){
         fread(&codigo, sizeof(char),1, arch);

@@ -14,31 +14,19 @@ int saltoValido(int destino, short int seg[][2]) {
 }
 void inst_sys (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[OP1],reg,mem,seg);
-    int cantByte = reg[ECX] >> 16;
-    int cantValores = reg[ECX] & 0xFFFF;
+    int cantByte = reg[ECX] >> 16; //cantidad de bytes a leer/escribir
+    int cantValores = reg[ECX] & 0xFFFF; //cantidad de valores a leer/escribir
     int segmento    = (reg[EDX] >> 16) & 0xFFFF;
     int offset_base = reg[EDX] & 0xFFFF;
-    int edx = seg[segmento][0] + offset_base;
+    int edx = seg[segmento][IP] + offset_base; // direccion fisica real para leer/escribir datos
 
-    if (segmento < 0 || segmento > 7 || seg[segmento][0] == -1 ||
-        offset_base < 0 || (offset_base + (cantValores * cantByte)) > seg[segmento][1]) {
-        printf("ERROR: Segmentation Fault en SYS. Acceso fuera de limite.\n");
-        exit(1);
-    }
-
-    if(op_a == 1){
+    if(op_a == 1){ //para lectura
         for(int i=0;i<cantValores;i++){
             int valor_a_guardar = 0;
-            if((reg[EAX] & 0xF0) == 0x10){
-                int maxBits = cantByte * 8;
-                char* cad_binaria = (char *)malloc(sizeof(char)*maxBits+1);
-
-                char formato[20];
-                sprintf(formato, "%%%ds", maxBits);
-                scanf(formato, cad_binaria);
-
-                int len = strlen(cad_binaria);
-                for(int j=0; j < len; j++){
+            if((reg[EAX] & 0xF0) == 0x10){ //lee entrada en formato binario
+                char* cad_binaria = (char *)malloc(sizeof(char)*cantByte*8+1); //+ 1 para el \0
+                scanf("%s", cad_binaria);
+                for(int j=0;j<cantByte*8;j++){ //leo bit a bit, y voy armando el valor a guardar
                     valor_a_guardar = valor_a_guardar << 1;
                     if(cad_binaria[j] == '1')
                         valor_a_guardar += 1;
@@ -47,36 +35,36 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             }
             else
                 switch(reg[EAX] & 0xF){
-                    case 0x0:
+                    case 0x0: //imprime en decimal
                         scanf("%d", &valor_a_guardar);
                         break;
-                    case 0x2: {
+                    case 0x2: {//caracter
                         char c;
-                        scanf(" %c", &c);
+                        scanf(" %c", &c); //espacio antes de %c para ignorar
                         valor_a_guardar = (int)c;
                     };break;
-                    case 0x4:
+                    case 0x4: //octal
                         scanf("%o", &valor_a_guardar);
                         break;
-                    case 0x8:
+                    case 0x8: //hexadecimal
                         scanf("%X", &valor_a_guardar);
                         break;
                 }
-
+            
             for(int j=0;j<cantByte;j++)
-                mem[edx+i*cantByte+j] = (valor_a_guardar >> (8*(cantByte-1-j))) & 0xFF;
+                mem[edx+i*cantByte+j] = (valor_a_guardar >> (8*(cantByte-1-j))) & 0xFF; //comienza en cantbyte-1 para leer el primer byte mas significativo, y luego va bajando
         }
     }
     else
-        if(op_a == 2){
+        if(op_a == 2){ //para escritura
             for(int i=0;i<cantValores;i++){
-                int valor_a_escribir = mem[edx+i*cantByte] & 0xFF;
-                for(int j=1; j < cantByte; j++){
+                int valor_a_escribir = mem[edx+i*cantByte] & 0xFF; //no usar reg 13 para edx sino usar get_valor para obtener direccion fisica??
+                for(int j=1; j < cantByte; j++){ //termino de concatenar los bytes en un solo valor
                     valor_a_escribir = valor_a_escribir << 8;
                     valor_a_escribir += mem[edx+i*cantByte+j] & 0xFF;
-                }
+                } 
 
-                if(((reg[EAX] & 0xF0) == 0x10)){
+                if(((reg[EAX] & 0xF0) == 0x10)){ //imprime en binario
                     char *s = (char *)malloc(sizeof(valor_a_escribir)*8+1);
                     devuelveNotacionBinaria(valor_a_escribir,s);
                     printf("%s\n", s);
@@ -84,16 +72,16 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                 }
                 else {
                     switch(reg[EAX] & 0xF){
-                        case 0x0:
+                        case 0x0: //imprime en decimal
                             printf("%d\n", valor_a_escribir);
                             break;
-                        case 0x2:
+                        case 0x2: //caracter
                             printf("%c\n", valor_a_escribir);
                             break;
-                        case 0x4:
+                        case 0x4: //octal
                             printf("%o\n", valor_a_escribir);
                             break;
-                        case 0x8:
+                        case 0x8: //hexadecimal
                             printf("%X\n", valor_a_escribir);
                             break;
                     }
@@ -142,7 +130,7 @@ void inst_jz  (int reg[], char mem[], short int seg[][2]){
     int z = (reg[CC] >> 30) & 0x1; //bit de cero
 
     if(z == 1){ //si el bit de cero es 1, entonces el numero es cero
-        int op = get_valor(reg[OP1],reg,mem,seg);
+        int op = get_valor(reg[2],reg,mem,seg);
         if (saltoValido(op, seg))
             reg[IP] = op; //carga en ip el valor de op
         else {
@@ -230,6 +218,7 @@ void inst_stop(int reg[], char mem[], short int seg[][2]) {
     reg[IP] = -1; //carga en ip, -1 para indicar que termino la ejecucion del programa
 }
 void inst_mov (int reg[], char mem[], short int seg[][2]) {
+    //int op_a = get_valor(reg[OP1],reg,mem,seg);
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
     set_valor(reg[OP1], op_b, reg, mem, seg); //carga en A el valor de B
@@ -242,7 +231,7 @@ void inst_add (int reg[], char mem[], short int seg[][2]){
     int resultado = op_a + op_b;
     set_valor(reg[OP1], resultado, reg, mem, seg);
 
-    int carry = ((unsigned int)resultado < (unsigned int)op_a) ? 1 : 0;
+    int carry = (resultado < op_a) ? 1 : 0;
     int overflow = ((op_a > 0 && op_b > 0 && resultado < 0) || (op_a < 0 && op_b < 0 && resultado > 0)) ? 1 : 0;
     actualizarCC(reg, resultado, carry, overflow);
 }
@@ -250,10 +239,8 @@ void inst_sub (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int opB = get_valor(reg[OP2], reg,mem, seg);
     int resta = opA - opB;
-    int carry = 0;
     int overflow = 0;
-    if ((unsigned int)opB > (unsigned int)opA)
-        carry = 1;
+    int carry = (opA < opB) ? 1 : 0;
     if ((opA > 0 && opB < 0 && resta < 0) ||
         (opA < 0 && opB > 0 && resta > 0)) {
         overflow = 1;
@@ -265,14 +252,12 @@ void inst_sub (int reg[], char mem[], short int seg[][2]) {
 void inst_mul (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int opB = get_valor(reg[OP2], reg,mem, seg);
-    int carry = 0;
-    int overflow = 0;
-    long long producto64 = (long long)opA * (long long)opB;
+
+    long long producto64 = (long long)opA * opB;   // <- casteo antes de multiplicar
     int producto32 = (int)producto64;
-    if (producto64 != (long long)producto32) {
-        overflow = 1;
-    }
-    actualizarCC(reg,producto32,carry,overflow);
+    int desborda = (producto64 != (long long)producto32) ? 1 : 0; //si no entra en 32 bits, hay ambos y carry y overflow a la vez
+
+    actualizarCC(reg, producto32, desborda, desborda);
     set_valor(reg[OP1], producto32, reg, mem, seg);
 }
 void inst_div (int reg[], char mem[], short int seg[][2]) {
@@ -284,26 +269,20 @@ void inst_div (int reg[], char mem[], short int seg[][2]) {
         printf("IMPOSIBLE DIVIDIR POR CERO\n");
         exit(1);
     }
-
-    if (opA == 0x80000000 && opB == -1) { // dividir el mayor numero negativo por -1 produce un numero positivo que no entra
-        cociente = 0x80000000;
-        resto = 0;
-    } else {
-        cociente = opA / opB;
-        resto = opA % opB;
-    }
+    cociente = opA / opB;
+    resto = opA % opB;
     set_valor(reg[OP1], cociente, reg, mem,seg);
     reg[AC] = resto;
     actualizarCC(reg,cociente,0,0 );
 }
 void inst_cmp (int reg[], char mem[], short int seg[][2]) {
     
-    int op_a = get_valor(reg[OP1],reg,mem,seg);
-    int op_b = get_valor(reg[OP2],reg,mem,seg);
+    int op_a = get_valor(reg[2],reg,mem,seg);
+    int op_b = get_valor(reg[3],reg,mem,seg);
 
     int resultado = op_a - op_b;
 
-    int carry = ((unsigned int)op_a < (unsigned int)op_b) ? 1 : 0; 
+    int carry = (op_a < op_b) ? 1 : 0;
     int overflow = ((op_a > 0 && op_b < 0 && resultado < 0) || (op_a < 0 && op_b > 0 && resultado > 0)) ? 1 : 0;
     actualizarCC(reg, resultado, carry, overflow);
 }
@@ -345,19 +324,14 @@ void inst_swap(int reg[], char mem[], short int seg[][2]) {
     actualizarCC(reg, opB, 0,0);
 }
 void inst_shl (int reg[], char mem[], short int seg[][2]) {
+    
     int op_a = get_valor(reg[OP1],reg,mem,seg);
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
-    int shift = op_b & 0x1F; // acota el desplazamiento entre 0 y 31
-
-    int resultado = op_a << shift;
+    int resultado = op_a << op_b;
     set_valor(reg[OP1], resultado, reg, mem, seg);
 
-    int carry = 0;
-    if (shift > 0) {
-        carry = (op_a & (1 << (32 - shift))) ? 1 : 0;
-    }
-
+    int carry = (op_a & (1 << (32 - op_b))) ? 1 : 0; 
     int overflow = ((op_a > 0 && resultado < 0) || (op_a < 0 && resultado > 0)) ? 1 : 0;
     actualizarCC(reg, resultado, carry, overflow);
 }
@@ -409,9 +383,6 @@ void inst_rnd (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[OP1],reg,mem,seg);
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
-    if (op_b < 0) {
-        op_b = 0;
-    }
     //genera numero aleatorio entre 0 y op_b, y lo guarda en A
     int resultado = rand() % (op_b + 1);
     set_valor(reg[OP1], resultado, reg, mem, seg);
