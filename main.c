@@ -22,7 +22,7 @@ int condicionProceso(int ip, short int tablaSegmentos[8][2]) {
     }
     return 1;
 }
-void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int tablaSegmentos[8][2], int flag_d) {
+void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int tablaSegmentos[8][2]) {
     while (condicionProceso(registros[IP], tablaSegmentos)) {
 
         int segmento_ip = (registros[IP] >> 16) & 0xFFFF;
@@ -90,10 +90,6 @@ void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int ta
             registros[OP2] = 0;
         else 
             registros[OP2] = (tipoB << 24) | (valorB & 0x00FFFFFF);
-
-        if (flag_d) {
-            imprimirDisassembler(pc, opcode, tipoA, tipoB, valorA, valorB, memoriaPrincipal);
-        }
         
         operaciones[opcode](registros, memoriaPrincipal, tablaSegmentos); //como hacer para separar el ciclo de solo impresion en assembler de ciclo con calculo de logica en codigo??
 
@@ -161,23 +157,25 @@ int main(int argc, char*argv[]) {
     short int tablaSegmentos[8][2];
     int registros[32] = {0};
     char memoriaPrincipal[ram] = {0};
-    int flag_d=0;
+    int flag_d = 0;
 
     if(argc >= 2 && argc <= 3){
         if(argc == 3 && strcmp(argv[2],"-d") == 0){
             flag_d = 1;
-            iniciaSegmentos(tablaSegmentos);
-            lecturaArchivo(argv[1], tablaSegmentos, registros, memoriaPrincipal); 
-            ejecutarProceso(memoriaPrincipal, registros, tablaSegmentos, flag_d);
         }
-        flag_d = 0;
         iniciaSegmentos(tablaSegmentos);
-        lecturaArchivo(argv[1], tablaSegmentos, registros, memoriaPrincipal); 
-        ejecutarProceso(memoriaPrincipal, registros, tablaSegmentos, flag_d);
+        lecturaArchivo(argv[1], tablaSegmentos, registros, memoriaPrincipal);
 
+        if (flag_d) {
+            // tablaSegmentos[0][1] tiene el tamCod que se guardó en lecturaArchivo
+            volcadoDisassembler(memoriaPrincipal, tablaSegmentos[0][1]);
+        }
+
+        ejecutarProceso(memoriaPrincipal, registros, tablaSegmentos);
     }
-    else
+    else {
         printf("formato del pedido: ./{ejecutable} {archivo-vmx} [-d]\n");
+    }
 
     return 0;
 }
