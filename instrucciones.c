@@ -2,7 +2,6 @@
 #include "utilidades.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 int saltoValido(int destino, short int seg[][2]) {
     int limiteCodeSeg = seg[0][1];
@@ -224,67 +223,94 @@ void inst_mov (int reg[], char mem[], short int seg[][2]) {
     set_valor(reg[OP1], op_b, reg, mem, seg); //carga en A el valor de B
     actualizarCC(reg, op_b, 0, 0); //bien?
 }
-void inst_add (int reg[], char mem[], short int seg[][2]){
-    int op_a = get_valor(reg[OP1],reg,mem,seg);
-    int op_b = get_valor(reg[OP2],reg,mem,seg);
+void inst_add(int reg[], char mem[], short int seg[][2]) {
+    int op_a = get_valor(reg[OP1], reg, mem, seg);
+    int op_b = get_valor(reg[OP2], reg, mem, seg);
 
-    int resultado = op_a + op_b;
-    set_valor(reg[OP1], resultado, reg, mem, seg);
+    long long real_signed = (long long)op_a + (long long)op_b;
+    unsigned long long real_unsigned = (unsigned long long)(unsigned int)op_a + (unsigned long long)(unsigned int)op_b;
 
-    int carry = (resultado < op_a) ? 1 : 0;
-    int overflow = ((op_a > 0 && op_b > 0 && resultado < 0) || (op_a < 0 && op_b < 0 && resultado > 0)) ? 1 : 0;
-    actualizarCC(reg, resultado, carry, overflow);
+    int res32_signed = (int)real_signed;
+    unsigned int res32_unsigned = (unsigned int)real_unsigned;
+
+    int overflow = (real_signed != res32_signed) ? 1 : 0;
+    int carry = (real_unsigned != res32_unsigned) ? 1 : 0;
+
+    set_valor(reg[OP1], res32_signed, reg, mem, seg);
+    actualizarCC(reg, res32_signed, carry, overflow);
 }
-void inst_sub (int reg[], char mem[], short int seg[][2]) {
-    int opA = get_valor(reg[OP1], reg,mem, seg);
-    int opB = get_valor(reg[OP2], reg,mem, seg);
-    int resta = opA - opB;
-    int overflow = 0;
-    int carry = (opA < opB) ? 1 : 0;
-    if ((opA > 0 && opB < 0 && resta < 0) ||
-        (opA < 0 && opB > 0 && resta > 0)) {
-        overflow = 1;
-        }
 
-    set_valor(reg[OP1], resta, reg, mem, seg);
-    actualizarCC(reg,resta,carry,overflow);
+void inst_sub(int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg, mem, seg);
+    int opB = get_valor(reg[OP2], reg, mem, seg);
+
+    long long real_signed = (long long)opA - (long long)opB;
+    unsigned long long real_unsigned = (unsigned long long)(unsigned int)opA - (unsigned long long)(unsigned int)opB;
+
+    int res32_signed = (int)real_signed;
+    unsigned int res32_unsigned = (unsigned int)real_unsigned;
+
+    int overflow = (real_signed != res32_signed) ? 1 : 0;
+    int carry = (real_unsigned != res32_unsigned) ? 1 : 0;
+
+    set_valor(reg[OP1], res32_signed, reg, mem, seg);
+    actualizarCC(reg, res32_signed, carry, overflow);
 }
-void inst_mul (int reg[], char mem[], short int seg[][2]) {
-    int opA = get_valor(reg[OP1], reg,mem, seg);
-    int opB = get_valor(reg[OP2], reg,mem, seg);
 
-    long long producto64 = (long long)opA * opB;   // <- casteo antes de multiplicar
-    int producto32 = (int)producto64;
-    int desborda = (producto64 != (long long)producto32) ? 1 : 0; //si no entra en 32 bits, hay ambos y carry y overflow a la vez
+void inst_mul(int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg, mem, seg);
+    int opB = get_valor(reg[OP2], reg, mem, seg);
 
-    actualizarCC(reg, producto32, desborda, desborda);
-    set_valor(reg[OP1], producto32, reg, mem, seg);
+    long long real_signed = (long long)opA * (long long)opB;
+    unsigned long long real_unsigned = (unsigned long long)(unsigned int)opA * (unsigned long long)(unsigned int)opB;
+
+    int res32_signed = (int)real_signed;
+    unsigned int res32_unsigned = (unsigned int)real_unsigned;
+
+    int overflow = (real_signed != res32_signed) ? 1 : 0;
+    int carry = (real_unsigned != res32_unsigned) ? 1 : 0;
+
+    set_valor(reg[OP1], res32_signed, reg, mem, seg);
+    actualizarCC(reg, res32_signed, carry, overflow);
 }
-void inst_div (int reg[], char mem[], short int seg[][2]) {
-    int opA = get_valor(reg[OP1], reg,mem, seg);
-    int opB = get_valor(reg[OP2], reg,mem, seg);
+void inst_div(int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg, mem, seg);
+    int opB = get_valor(reg[OP2], reg, mem, seg);
     int cociente;
     int resto;
+
     if (opB == 0) {
         printf("IMPOSIBLE DIVIDIR POR CERO\n");
         exit(1);
     }
-    cociente = opA / opB;
-    resto = opA % opB;
-    set_valor(reg[OP1], cociente, reg, mem,seg);
+
+    if (opA == 0x80000000 && opB == -1) { // caso l[imite
+        cociente = 0x80000000;
+        resto = 0;
+    } else {
+        cociente = opA / opB;
+        resto = opA % opB;
+    }
+
+    set_valor(reg[OP1], cociente, reg, mem, seg);
     reg[AC] = resto;
-    actualizarCC(reg,cociente,0,0 );
+    actualizarCC(reg, cociente, 0, 0);
 }
-void inst_cmp (int reg[], char mem[], short int seg[][2]) {
-    
-    int op_a = get_valor(reg[2],reg,mem,seg);
-    int op_b = get_valor(reg[3],reg,mem,seg);
 
-    int resultado = op_a - op_b;
+void inst_cmp(int reg[], char mem[], short int seg[][2]) {
+    int op_a = get_valor(reg[OP1], reg, mem, seg);
+    int op_b = get_valor(reg[OP2], reg, mem, seg);
 
-    int carry = (op_a < op_b) ? 1 : 0;
-    int overflow = ((op_a > 0 && op_b < 0 && resultado < 0) || (op_a < 0 && op_b > 0 && resultado > 0)) ? 1 : 0;
-    actualizarCC(reg, resultado, carry, overflow);
+    long long real_signed = (long long)op_a - (long long)op_b;
+    unsigned long long real_unsigned = (unsigned long long)(unsigned int)op_a - (unsigned long long)(unsigned int)op_b;
+
+    int res32_signed = (int)real_signed;
+    unsigned int res32_unsigned = (unsigned int)real_unsigned;
+
+    int overflow = (real_signed != res32_signed) ? 1 : 0;
+    int carry = (real_unsigned != res32_unsigned) ? 1 : 0;
+
+    actualizarCC(reg, res32_signed, carry, overflow);
 }
 void inst_and (int reg[], char mem[], short int seg[][2]) {
     

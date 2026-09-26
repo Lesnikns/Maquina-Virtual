@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "instrucciones.h"
 #include "utilidades.h"
 #include"disassembler.h"
 #define ram 16384

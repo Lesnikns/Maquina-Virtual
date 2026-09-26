@@ -1,8 +1,7 @@
 #include "utilidades.h"
 #include "instrucciones.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
+
 
 InstruccionFunc operaciones[32] = {
     inst_sys, inst_jmp, inst_jp,  inst_jn,  inst_jz,  inst_jc,  inst_jv,  inst_jnp,
