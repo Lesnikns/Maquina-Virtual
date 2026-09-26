@@ -2,7 +2,6 @@
 #include "utilidades.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 int saltoValido(int destino, short int seg[][2]) {
     int limiteCodeSeg = seg[0][1];
@@ -285,7 +284,7 @@ void inst_div(int reg[], char mem[], short int seg[][2]) {
         exit(1);
     }
 
-    if (opA == 0x80000000 && opB == -1) {
+    if (opA == 0x80000000 && opB == -1) { // caso l[imite
         cociente = 0x80000000;
         resto = 0;
     } else {
