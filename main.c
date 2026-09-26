@@ -48,7 +48,6 @@ void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int ta
         int valorA = 0, valorB = 0;
         int offset_actual = pc + 1; 
         
-        //primero se leera opA, luego opB
         if (tipoB == 1) {
             valorB = memoriaPrincipal[offset_actual] & 0xFF;
             offset_actual += 1;

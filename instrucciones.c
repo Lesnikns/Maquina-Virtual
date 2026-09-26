@@ -244,14 +244,17 @@ void inst_sub(int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg, mem, seg);
     int opB = get_valor(reg[OP2], reg, mem, seg);
 
+    int res32_signed = opA - opB;
+
     long long real_signed = (long long)opA - (long long)opB;
-    unsigned long long real_unsigned = (unsigned long long)(unsigned int)opA - (unsigned long long)(unsigned int)opB;
-
-    int res32_signed = (int)real_signed;
-    unsigned int res32_unsigned = (unsigned int)real_unsigned;
-
     int overflow = (real_signed != res32_signed) ? 1 : 0;
-    int carry = (real_unsigned != res32_unsigned) ? 1 : 0;
+
+    unsigned int comp2_opB = ~(unsigned int)opB + 1u;
+
+    unsigned long long resU64 = (unsigned long long)(unsigned int)opA +
+                                 (unsigned long long)comp2_opB;
+
+    int carry = (resU64 >> 32) != 0 ? 1 : 0;
 
     set_valor(reg[OP1], res32_signed, reg, mem, seg);
     actualizarCC(reg, res32_signed, carry, overflow);
@@ -298,17 +301,20 @@ void inst_div(int reg[], char mem[], short int seg[][2]) {
 }
 
 void inst_cmp(int reg[], char mem[], short int seg[][2]) {
-    int op_a = get_valor(reg[OP1], reg, mem, seg);
-    int op_b = get_valor(reg[OP2], reg, mem, seg);
+    int opA = get_valor(reg[OP1], reg, mem, seg);
+    int opB = get_valor(reg[OP2], reg, mem, seg);
 
-    long long real_signed = (long long)op_a - (long long)op_b;
-    unsigned long long real_unsigned = (unsigned long long)(unsigned int)op_a - (unsigned long long)(unsigned int)op_b;
+    int res32_signed = opA - opB;
 
-    int res32_signed = (int)real_signed;
-    unsigned int res32_unsigned = (unsigned int)real_unsigned;
-
+    long long real_signed = (long long)opA - (long long)opB;
     int overflow = (real_signed != res32_signed) ? 1 : 0;
-    int carry = (real_unsigned != res32_unsigned) ? 1 : 0;
+
+    unsigned int comp2_opB = ~(unsigned int)opB + 1u;
+
+    unsigned long long resU64 = (unsigned long long)(unsigned int)opA +
+                                 (unsigned long long)comp2_opB;
+    
+    int carry = (resU64 >> 32) != 0 ? 1 : 0;
 
     actualizarCC(reg, res32_signed, carry, overflow);
 }
@@ -378,7 +384,7 @@ void inst_shr (int reg[], char mem[], short int seg[][2]) {
     unsigned int ua = (unsigned int)opA;
     if (shift > 0)
         carry = (ua >> (shift - 1)) & 1; // aislo el bit que se cayo segun el desplamiento para calcular el carry
-    
+
     set_valor(reg[OP1], resultado, reg, mem,seg);
     actualizarCC(reg, resultado,carry,0);
 
