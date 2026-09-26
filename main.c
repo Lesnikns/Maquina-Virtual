@@ -47,7 +47,7 @@ void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int ta
         
         int valorA = 0, valorB = 0;
         int offset_actual = pc + 1; 
-        
+
         if (tipoB == 1) {
             valorB = memoriaPrincipal[offset_actual] & 0xFF;
             offset_actual += 1;
@@ -89,8 +89,7 @@ void ejecutarProceso(char memoriaPrincipal[ram], int registros[32], short int ta
         else 
             registros[OP2] = (tipoB << 24) | (valorB & 0x00FFFFFF);
         
-        operaciones[opcode](registros, memoriaPrincipal, tablaSegmentos); //como hacer para separar el ciclo de solo impresion en assembler de ciclo con calculo de logica en codigo??
-
+        operaciones[opcode](registros, memoriaPrincipal, tablaSegmentos);
     }
 }
 
@@ -110,13 +109,9 @@ void lecturaArchivo(char nombre[], short int tablaSegmentos[8][2], int registros
 
     fread(&version, sizeof(char), 1, arch);
 
-    //fread(&tamCod, sizeof(short int), 1, arch); //mal, lee bytes forzado como little endian, cuando deberia ser big endian, por eso se hace lectura byte a byte
     unsigned char tamCod_bytes[2];
     fread(tamCod_bytes, sizeof(char), 2, arch);
     tamCod = (tamCod_bytes[0] << 8) | tamCod_bytes[1];
-
-    //printf("Identificador: %s\n", identificador);
-    //printf("Version: %d\n", version);
     
     if (strcmp(identificador, "VMX26") != 0 || version != 1) {
         printf("Error: Archivo ejecutable invalido o version no soportada.\n");
@@ -127,8 +122,6 @@ void lecturaArchivo(char nombre[], short int tablaSegmentos[8][2], int registros
     tablaSegmentos[0][1] = tablaSegmentos[1][0] = tamCod;
     tablaSegmentos[1][1] = ram - tamCod;
 
-    //printf("DEBUG: tamCod=%d, seg[1][0]=%d, seg[1][1]=%d\n", tamCod, tablaSegmentos[1][0], tablaSegmentos[1][1]);
-    
     int i = 0;
     for(i=0; i < tamCod; i++){
         fread(&codigo, sizeof(char),1, arch);
@@ -139,7 +132,6 @@ void lecturaArchivo(char nombre[], short int tablaSegmentos[8][2], int registros
     registros[0] = registros[0x1A];
 
     fclose(arch);
-
 }
 
 void iniciaSegmentos(short int matriz[8][2]){
@@ -165,7 +157,6 @@ int main(int argc, char*argv[]) {
         lecturaArchivo(argv[1], tablaSegmentos, registros, memoriaPrincipal);
 
         if (flag_d) {
-            // tablaSegmentos[0][1] tiene el tamCod que se guardó en lecturaArchivo
             volcadoDisassembler(memoriaPrincipal, tablaSegmentos[0][1]);
         }
 
