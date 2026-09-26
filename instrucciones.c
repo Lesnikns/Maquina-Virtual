@@ -140,8 +140,8 @@ void inst_jz  (int reg[], char mem[], short int seg[][2]){
 }
 void inst_jc  (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg, mem, seg);
-    int carry = (reg[CC] >> 29) & 1;
-    if (carry) {
+    int carry = (reg[CC] >> 29) & 1; // obtiene el valor del carry 0 o 1
+    if (carry) { // si hay carry comprueba que el salto sea valido
         if (saltoValido(opA, seg))
             reg[IP] = opA;
         else {
@@ -152,8 +152,8 @@ void inst_jc  (int reg[], char mem[], short int seg[][2]) {
 }
 void inst_jv  (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
-    int overflow = (reg[CC] >> 28) & 1;
-    if (overflow) {
+    int overflow = (reg[CC] >> 28) & 1; // obtiene el valor del overflow 0 o 1
+    if (overflow) { // si hay overflow comprueba que el salto sea valido
         if (saltoValido(opA, seg))
             reg[IP] = opA;
         else {
@@ -217,11 +217,10 @@ void inst_stop(int reg[], char mem[], short int seg[][2]) {
     reg[IP] = -1; //carga en ip, -1 para indicar que termino la ejecucion del programa
 }
 void inst_mov (int reg[], char mem[], short int seg[][2]) {
-    //int op_a = get_valor(reg[OP1],reg,mem,seg);
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
     set_valor(reg[OP1], op_b, reg, mem, seg); //carga en A el valor de B
-    actualizarCC(reg, op_b, 0, 0); //bien?
+    actualizarCC(reg, op_b, 0, 0);
 }
 void inst_add(int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[OP1], reg, mem, seg);
@@ -233,8 +232,8 @@ void inst_add(int reg[], char mem[], short int seg[][2]) {
     int res32_signed = (int)real_signed;
     unsigned int res32_unsigned = (unsigned int)real_unsigned;
 
-    int overflow = (real_signed != res32_signed) ? 1 : 0;
-    int carry = (real_unsigned != res32_unsigned) ? 1 : 0;
+    int overflow = (real_signed != res32_signed) ? 1 : 0; // compara el desbordamiento, si el resultado cambio a causa de que no entraba en los 32 bits.
+    int carry = (real_unsigned != res32_unsigned) ? 1 : 0; // se fija que no haya quedado un bit suelto, acarreo
 
     set_valor(reg[OP1], res32_signed, reg, mem, seg);
     actualizarCC(reg, res32_signed, carry, overflow);
@@ -245,16 +244,14 @@ void inst_sub(int reg[], char mem[], short int seg[][2]) {
     int opB = get_valor(reg[OP2], reg, mem, seg);
 
     int res32_signed = opA - opB;
-
     long long real_signed = (long long)opA - (long long)opB;
-    int overflow = (real_signed != res32_signed) ? 1 : 0;
-
     unsigned int comp2_opB = ~(unsigned int)opB + 1u;
-
     unsigned long long resU64 = (unsigned long long)(unsigned int)opA +
                                  (unsigned long long)comp2_opB;
 
-    int carry = (resU64 >> 32) != 0 ? 1 : 0;
+    int overflow = (real_signed != res32_signed) ? 1 : 0; // compara el desbordamiento, si el resultado cambio a causa de que no entraba en los 32 bits.
+    int carry = (resU64 >> 32) != 0 ? 1 : 0;// se fija que no haya quedado un bit suelto, acarreo
+
 
     set_valor(reg[OP1], res32_signed, reg, mem, seg);
     actualizarCC(reg, res32_signed, carry, overflow);
@@ -270,8 +267,8 @@ void inst_mul(int reg[], char mem[], short int seg[][2]) {
     int res32_signed = (int)real_signed;
     unsigned int res32_unsigned = (unsigned int)real_unsigned;
 
-    int overflow = (real_signed != res32_signed) ? 1 : 0;
-    int carry = (real_unsigned != res32_unsigned) ? 1 : 0;
+    int overflow = (real_signed != res32_signed) ? 1 : 0; // compara el desbordamiento, si el resultado cambio a causa de que no entraba en los 32 bits.
+    int carry = (real_unsigned != res32_unsigned) ? 1 : 0; // se fija que no haya quedado un bit suelto, acarreo
 
     set_valor(reg[OP1], res32_signed, reg, mem, seg);
     actualizarCC(reg, res32_signed, carry, overflow);
@@ -281,15 +278,17 @@ void inst_div(int reg[], char mem[], short int seg[][2]) {
     int opB = get_valor(reg[OP2], reg, mem, seg);
     int cociente;
     int resto;
+    int overflow = 0;
 
-    if (opB == 0) {
+    if (opB == 0) { //  error division por cero
         printf("IMPOSIBLE DIVIDIR POR CERO\n");
         exit(1);
     }
 
-    if (opA == 0x80000000 && opB == -1) { // caso l[imite
+    if (opA == 0x80000000 && opB == -1) { // caso limite que genera desbordamiento
         cociente = 0x80000000;
         resto = 0;
+        overflow = 1;
     } else {
         cociente = opA / opB;
         resto = opA % opB;
@@ -297,7 +296,7 @@ void inst_div(int reg[], char mem[], short int seg[][2]) {
 
     set_valor(reg[OP1], cociente, reg, mem, seg);
     reg[AC] = resto;
-    actualizarCC(reg, cociente, 0, 0);
+    actualizarCC(reg, cociente, 0, overflow);
 }
 
 void inst_cmp(int reg[], char mem[], short int seg[][2]) {
@@ -305,15 +304,12 @@ void inst_cmp(int reg[], char mem[], short int seg[][2]) {
     int opB = get_valor(reg[OP2], reg, mem, seg);
 
     int res32_signed = opA - opB;
-
     long long real_signed = (long long)opA - (long long)opB;
-    int overflow = (real_signed != res32_signed) ? 1 : 0;
-
     unsigned int comp2_opB = ~(unsigned int)opB + 1u;
-
     unsigned long long resU64 = (unsigned long long)(unsigned int)opA +
                                  (unsigned long long)comp2_opB;
-    
+
+    int overflow = (real_signed != res32_signed) ? 1 : 0;
     int carry = (resU64 >> 32) != 0 ? 1 : 0;
 
     actualizarCC(reg, res32_signed, carry, overflow);
@@ -324,8 +320,8 @@ void inst_and (int reg[], char mem[], short int seg[][2]) {
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
     int resultado = op_a & op_b;
-    set_valor(reg[OP1], resultado, reg, mem, seg);
 
+    set_valor(reg[OP1], resultado, reg, mem, seg);
     actualizarCC(reg, resultado, 0, 0);
 }
 void inst_or  (int reg[], char mem[], short int seg[][2]) {
@@ -333,9 +329,9 @@ void inst_or  (int reg[], char mem[], short int seg[][2]) {
     int opB = get_valor(reg[OP2], reg,mem, seg);
 
     int resultado = opA | opB;
+
     set_valor(reg[OP1], resultado, reg, mem,seg);
     actualizarCC(reg,resultado,0,0);
-
 }
 void inst_xor (int reg[], char mem[], short int seg[][2]) {
     
@@ -343,13 +339,14 @@ void inst_xor (int reg[], char mem[], short int seg[][2]) {
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
     int resultado = op_a ^ op_b;
-    set_valor(reg[OP1], resultado, reg, mem, seg);
 
+    set_valor(reg[OP1], resultado, reg, mem, seg);
     actualizarCC(reg, resultado, 0, 0);
 }
 void inst_swap(int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int opB = get_valor(reg[OP2], reg,mem, seg);
+
     set_valor(reg[OP1], opB, reg, mem,seg);
     set_valor(reg[OP2], opA,reg, mem, seg);
 
@@ -387,7 +384,6 @@ void inst_shr (int reg[], char mem[], short int seg[][2]) {
 
     set_valor(reg[OP1], resultado, reg, mem,seg);
     actualizarCC(reg, resultado,carry,0);
-
 }
 void inst_sar (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);

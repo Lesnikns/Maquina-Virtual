@@ -97,7 +97,7 @@ void volcadoDisassembler(char memoriaPrincipal[], short int tamCod) {
 
         imprimirDisassembler(pc, opcode, tipoA, tipoB, valorA, valorB, memoriaPrincipal);
 
-        // Avanzamos el PC para leer la siguiente instrucción
+        // Avanzamos el PC para leer la siguiente instrucción, en caso de jump va a modificarse.
         pc += (1 + tipoA + tipoB);
     }
     printf("--- FIN DISASSEMBLER ---\n\n");
