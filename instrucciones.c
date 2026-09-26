@@ -34,7 +34,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             }
             else
                 switch(reg[EAX] & 0xF){
-                    case 0x0: //imprime en decimal
+                    case 0x1: //imprime en decimal
                         scanf("%d", &valor_a_guardar);
                         break;
                     case 0x2: {//caracter
@@ -71,7 +71,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                 }
                 else {
                     switch(reg[EAX] & 0xF){
-                        case 0x0: //imprime en decimal
+                        case 0x1: //imprime en decimal
                             printf("%d\n", valor_a_escribir);
                             break;
                         case 0x2: //caracter
@@ -350,15 +350,22 @@ void inst_swap(int reg[], char mem[], short int seg[][2]) {
     actualizarCC(reg, opB, 0,0);
 }
 void inst_shl (int reg[], char mem[], short int seg[][2]) {
-    
     int op_a = get_valor(reg[OP1],reg,mem,seg);
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
-    int resultado = op_a << op_b;
-    set_valor(reg[OP1], resultado, reg, mem, seg);
+    int shift = op_b & 0x1F;
+    unsigned int ua = (unsigned int)op_a;
+    unsigned int ur = ua << shift;       // shift bien definido siempre
+    int resultado = (int)ur;
 
-    int carry = (op_a & (1 << (32 - op_b))) ? 1 : 0; 
+    int carry = 0;
+    if (shift > 0) {
+        carry = (ua >> (32 - shift)) & 1;
+    }
+
     int overflow = ((op_a > 0 && resultado < 0) || (op_a < 0 && resultado > 0)) ? 1 : 0;
+
+    set_valor(reg[OP1], resultado, reg, mem, seg);
     actualizarCC(reg, resultado, carry, overflow);
 }
 void inst_shr (int reg[], char mem[], short int seg[][2]) {
@@ -367,8 +374,11 @@ void inst_shr (int reg[], char mem[], short int seg[][2]) {
     int carry = 0;
     int shift = opB & 0x1F; // evito que el valor de desplacamiento supere los 32 bits para que no rompa el programa
     unsigned int resultado = (unsigned int)opA >> shift;
+
+    unsigned int ua = (unsigned int)opA;
     if (shift > 0)
-        carry = (opA >> (shift - 1)) & 1; // aislo el bit que se cayo segun el desplamiento para calcular el carry
+        carry = (ua >> (shift - 1)) & 1; // aislo el bit que se cayo segun el desplamiento para calcular el carry
+    
     set_valor(reg[OP1], resultado, reg, mem,seg);
     actualizarCC(reg, resultado,carry,0);
 
