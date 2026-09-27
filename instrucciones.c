@@ -13,80 +13,99 @@ int saltoValido(int destino, short int seg[][2]) {
 }
 void inst_sys (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[OP1],reg,mem,seg);
-    int cantByte = reg[ECX] >> 16; //cantidad de bytes a leer/escribir
-    int cantValores = reg[ECX] & 0xFFFF; //cantidad de valores a leer/escribir
-    int segmento    = (reg[EDX] >> 16) & 0xFFFF;
-    int offset_base = reg[EDX] & 0xFFFF;
-    int edx = seg[segmento][IP] + offset_base; // direccion fisica real para leer/escribir datos
 
-    if(op_a == 1){ //para lectura
-        for(int i=0;i<cantValores;i++){
-            int valor_a_guardar = 0;
-            if((reg[EAX] & 0xF0) == 0x10){ //lee entrada en formato binario
-                char* cad_binaria = (char *)malloc(sizeof(char)*cantByte*8+1); //+ 1 para el \0
-                scanf("%s", cad_binaria);
-                for(int j=0;j<cantByte*8;j++){ //leo bit a bit, y voy armando el valor a guardar
-                    valor_a_guardar = valor_a_guardar << 1;
-                    if(cad_binaria[j] == '1')
-                        valor_a_guardar += 1;
-                }
-                free(cad_binaria);
+    // Solo validamos limites si es lectura (1) o escritura (2)
+    if(op_a == 1 || op_a == 2){
+        int cantByte = (reg[ECX] >> 16) & 0xFFFF; //cantidad de bytes a leer/escribir
+        int cantValores = reg[ECX] & 0xFFFF; //cantidad de valores a leer/escribir
+        int segmento    = (reg[EDX] >> 16) & 0xFFFF;
+        int offset_base = reg[EDX] & 0xFFFF;
+
+        // Validacion de Segmento (Solo si hay valores para operar)
+        if (cantValores > 0 && cantByte > 0) {
+            if (segmento < 0 || segmento > 7 || seg[segmento][0] == -1 ||
+                (offset_base + (cantValores * cantByte)) > seg[segmento][1]) {
+                printf("Fallo de segmento\n");
+                exit(1);
             }
-            else
-                switch(reg[EAX] & 0xF){
-                    case 0x1: //imprime en decimal
-                        scanf("%d", &valor_a_guardar);
-                        break;
-                    case 0x2: {//caracter
-                        char c;
-                        scanf(" %c", &c); //espacio antes de %c para ignorar
-                        valor_a_guardar = (int)c;
-                    };break;
-                    case 0x4: //octal
-                        scanf("%o", &valor_a_guardar);
-                        break;
-                    case 0x8: //hexadecimal
-                        scanf("%X", &valor_a_guardar);
-                        break;
-                }
-            
-            for(int j=0;j<cantByte;j++)
-                mem[edx+i*cantByte+j] = (valor_a_guardar >> (8*(cantByte-1-j))) & 0xFF; //comienza en cantbyte-1 para leer el primer byte mas significativo, y luego va bajando
-        }
-    }
-    else
-        if(op_a == 2){ //para escritura
-            for(int i=0;i<cantValores;i++){
-                int valor_a_escribir = mem[edx+i*cantByte] & 0xFF; //no usar reg 13 para edx sino usar get_valor para obtener direccion fisica??
-                for(int j=1; j < cantByte; j++){ //termino de concatenar los bytes en un solo valor
-                    valor_a_escribir = valor_a_escribir << 8;
-                    valor_a_escribir += mem[edx+i*cantByte+j] & 0xFF;
-                } 
 
-                if(((reg[EAX] & 0xF0) == 0x10)){ //imprime en binario
-                    char *s = (char *)malloc(sizeof(valor_a_escribir)*8+1);
-                    devuelveNotacionBinaria(valor_a_escribir,s);
-                    printf("%s\n", s);
-                    free(s);
+            int edx = seg[segmento][0] + offset_base; // direccion fisica base
+
+            if(op_a == 1){ // Para lectura
+                for(int i = 0; i < cantValores; i++){
+                    int valor_a_guardar = 0;
+                    int offset_actual = offset_base + (i * cantByte);
+                    int dir_fisica_actual = edx + (i * cantByte);
+
+                    // 1. Mostrar el prompt
+                    printf("[%04X]: ", dir_fisica_actual);
+
+                    // 2. Ingreso del dato
+                    if((reg[EAX] & 0xF0) == 0x10){
+                        char* cad_binaria = (char *)malloc(sizeof(char)*cantByte*8+1);
+                        scanf("%s", cad_binaria);
+                        for(int j=0; j<cantByte*8; j++){
+                            valor_a_guardar = valor_a_guardar << 1;
+                            if(cad_binaria[j] == '1')
+                                valor_a_guardar += 1;
+                        }
+                        free(cad_binaria);
+                    } else {
+                        switch(reg[EAX] & 0xF){
+                            case 0x1: scanf("%d", &valor_a_guardar); break;
+                            case 0x2: { char c; scanf(" %c", &c); valor_a_guardar = (int)c; } break;
+                            case 0x4: scanf("%o", &valor_a_guardar); break;
+                            case 0x8: scanf("%X", &valor_a_guardar); break;
+                        }
+                    }
+
+                    // 3. Actualizar LAR, MAR y MBR
+                    reg[LAR] = (segmento << 16) | (offset_actual & 0xFFFF);
+                    reg[MAR] = (cantByte << 16) | (dir_fisica_actual & 0xFFFF);
+                    reg[MBR] = valor_a_guardar;
+
+                    // 4. Guardar en memoria
+                    for(int j=0; j<cantByte; j++)
+                        mem[dir_fisica_actual+j] = (valor_a_guardar >> (8*(cantByte-1-j))) & 0xFF;
                 }
-                else {
-                    switch(reg[EAX] & 0xF){
-                        case 0x1: //imprime en decimal
-                            printf("%d\n", valor_a_escribir);
-                            break;
-                        case 0x2: //caracter
-                            printf("%c\n", valor_a_escribir);
-                            break;
-                        case 0x4: //octal
-                            printf("%o\n", valor_a_escribir);
-                            break;
-                        case 0x8: //hexadecimal
-                            printf("%X\n", valor_a_escribir);
-                            break;
+            }
+            else if(op_a == 2){ // Para escritura
+                for(int i = 0; i < cantValores; i++){
+                    int offset_actual = offset_base + (i * cantByte);
+                    int dir_fisica_actual = edx + (i * cantByte);
+
+                    int valor_a_escribir = mem[dir_fisica_actual] & 0xFF;
+                    for(int j = 1; j < cantByte; j++){
+                        valor_a_escribir = valor_a_escribir << 8;
+                        valor_a_escribir += mem[dir_fisica_actual+j] & 0xFF;
+                    }
+
+                    // 1. Actualizar LAR, MAR y MBR
+                    reg[LAR] = (segmento << 16) | (offset_actual & 0xFFFF);
+                    reg[MAR] = (cantByte << 16) | (dir_fisica_actual & 0xFFFF);
+                    reg[MBR] = valor_a_escribir;
+
+                    // 2. Mostrar el prompt
+                    printf("[%04X]: ", dir_fisica_actual);
+
+                    // 3. Imprimir el dato (Tu switch original intacto)
+                    if(((reg[EAX] & 0xF0) == 0x10)){
+                        char *s = (char *)malloc(sizeof(valor_a_escribir)*8+1);
+                        devuelveNotacionBinaria(valor_a_escribir, s);
+                        printf("%s\n", s);
+                        free(s);
+                    } else {
+                        switch(reg[EAX] & 0xF){
+                            case 0x1: printf("%d\n", valor_a_escribir); break;
+                            case 0x2: printf("%c\n", valor_a_escribir); break;
+                            case 0x4: printf("%o\n", valor_a_escribir); break;
+                            case 0x8: printf("%X\n", valor_a_escribir); break;
+                        }
                     }
                 }
             }
         }
+    }
 }
 void inst_jmp (int reg[], char mem[], short int seg[][2]) {
     int op = get_valor(reg[OP1],reg,mem,seg);
@@ -281,7 +300,7 @@ void inst_div(int reg[], char mem[], short int seg[][2]) {
     int overflow = 0;
 
     if (opB == 0) { //  error division por cero
-        printf("IMPOSIBLE DIVIDIR POR CERO\n");
+        printf("ERROR: Imposible dividir por cero.\n");
         exit(1);
     }
 
@@ -469,17 +488,27 @@ void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], c
         int segmento = (puntero_logico >> 16) & 0xFFFF;
         int offset_base = puntero_logico & 0xFFFF;
 
-
         if (segmento < 0 || segmento > 7 || tablaSegmentos[segmento][0] == -1) {
-            printf("Fallo de segmento\n");
+            printf("ERROR: Segmentation Fault. Segmento invalido o no inicializado. \n");
             exit(1);
         }
+
         int offset_final = offset_base + offset;
         if (offset_final < 0 || (offset_final + 3) >= tablaSegmentos[segmento][1]) {
-            printf("Fallo de segmento\n");
+            printf("ERROR: Segmentation Fault. Acceso fuera de los limites del segmento.\n");
             exit(1);
         }
-        int dir_fisica = tablaSegmentos[segmento][0] + offset_final; // Usamos el offset_final acá
+
+        int dir_fisica = tablaSegmentos[segmento][0] + offset_final;
+
+        // Carga de registro LAR: Dirección Lógica
+        registros[LAR] = (segmento << 16) | (offset_final & 0xFFFF);
+
+        // Carga de registro MAR: Cantidad de bytes (4) + Dirección Física
+        registros[MAR] = (4 << 16) | (dir_fisica & 0xFFFF);
+
+        // Carga de registro MBR: Valor a escribir
+        registros[MBR] = valor_a_guardar;
 
         memoriaPrincipal[dir_fisica]     = (valor_a_guardar >> 24) & 0xFF;
         memoriaPrincipal[dir_fisica + 1] = (valor_a_guardar >> 16) & 0xFF;
@@ -513,24 +542,33 @@ int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[]
         int offset_base = puntero_logico & 0xFFFF;
 
         if (segmento < 0 || segmento > 7 || tablaSegmentos[segmento][0] == -1) {
-            printf("Fallo de segmento\n");
+            printf("ERROR: Segmentation Fault. Segmento invalido o no inicializado.\n");
             exit(1);
         }
 
         int offset_final = offset_base + offset;
+
         // Verificamos que los 4 bytes que vamos a leer entren en el segmento
         if (offset_final < 0 || (offset_final + 3) >= tablaSegmentos[segmento][1]) {
-            printf("Fallo de segmento\n");
+            printf("ERROR: Segmentation Fault. Acceso fuera de los limites del segmento.\n");
             exit(1);
         }
 
-        int dir_fisica = tablaSegmentos[segmento][0] + offset_base + offset;
+        int dir_fisica = tablaSegmentos[segmento][0] + offset_final;
 
+        // Carga de registro LAR: Dirección Lógica (Segmento + Offset Final)
+        registros[LAR] = (segmento << 16) | (offset_final & 0xFFFF);
+
+        // Carga de registro MAR: Cantidad de bytes (4) + Dirección Física
+        registros[MAR] = (4 << 16) | (dir_fisica & 0xFFFF);
 
         int dato = ((memoriaPrincipal[dir_fisica] & 0xFF) << 24) |
                    ((memoriaPrincipal[dir_fisica + 1] & 0xFF) << 16) |
                    ((memoriaPrincipal[dir_fisica + 2] & 0xFF) << 8) |
                    (memoriaPrincipal[dir_fisica + 3] & 0xFF);
+
+        // Carga de registro MBR: Valor leído de memoria
+        registros[MBR] = dato;
 
         return dato;
     }
