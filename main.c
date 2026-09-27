@@ -3,6 +3,7 @@
 #include <string.h>
 #include "utilidades.h"
 #include"disassembler.h"
+#include <time.h>
 #define ram 16384
 
 int condicionProceso(int ip, short int tablaSegmentos[8][2]) {
@@ -16,8 +17,9 @@ int condicionProceso(int ip, short int tablaSegmentos[8][2]) {
         exit(1);
     }
     if (offset >= tablaSegmentos[segmento][1]) {
-        printf("FALLO DE SEGMENTO: Acceso fuera de limites.\n");
-        exit(1);
+        // Fin natural del programa (IP apunta fuera del Code Segment).
+        // Se omite el Fallo de Segmento por ser lectura de instrucción.
+        return 0; 
     }
     return 1;
 }
@@ -144,6 +146,8 @@ void iniciaSegmentos(short int matriz[8][2]){
 }
 
 int main(int argc, char*argv[]) {
+    srand(time(NULL));
+
     short int tablaSegmentos[8][2];
     int registros[32] = {0};
     char memoriaPrincipal[ram] = {0};
