@@ -26,7 +26,7 @@ gcc main.c instrucciones.c disassembler.c utilidades.c -o vm
 
 ./vm [archivo_binario.vmx]
 ```
-**Para disassembler: **
+**Para disassembler:**
 ```bash
 ./vm [archivo_binario.vmx] -d 
 
