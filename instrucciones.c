@@ -2,7 +2,8 @@
 #include "utilidades.h"
 #include <stdio.h>
 #include <stdlib.h>
-
+char *vmi_actual = NULL;
+int ram_actual = 0;
 int saltoValido(int destino, short int seg[][2]) {
     int limiteCodeSeg = seg[0][1];
 
@@ -243,6 +244,18 @@ void inst_invalida(int reg[], char mem[], short int seg[][2]){
     printf("INSTRUCCION INVALIDA\n");
     exit(1);
 }
+void inst_push(int reg[], char mem[], short int seg[][2]) {
+
+}
+void inst_pop(int reg[], char mem[], short int seg[][2]) {
+
+}
+void inst_call(int reg[], char mem[], short int seg[][2]) {
+
+}
+void inst_ret(int reg[], char mem[], short int seg[][2]) {
+
+}
 void inst_stop(int reg[], char mem[], short int seg[][2]) {
     reg[IP] = -1; //carga en ip, -1 para indicar que termino la ejecucion del programa
 }
@@ -268,7 +281,6 @@ void inst_add(int reg[], char mem[], short int seg[][2]) {
     set_valor(reg[OP1], res32_signed, reg, mem, seg);
     actualizarCC(reg, res32_signed, carry, overflow);
 }
-
 void inst_sub(int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg, mem, seg);
     int opB = get_valor(reg[OP2], reg, mem, seg);
@@ -286,7 +298,6 @@ void inst_sub(int reg[], char mem[], short int seg[][2]) {
     set_valor(reg[OP1], res32_signed, reg, mem, seg);
     actualizarCC(reg, res32_signed, carry, overflow);
 }
-
 void inst_mul(int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg, mem, seg);
     int opB = get_valor(reg[OP2], reg, mem, seg);
@@ -328,7 +339,6 @@ void inst_div(int reg[], char mem[], short int seg[][2]) {
     reg[AC] = resto;
     actualizarCC(reg, cociente, 0, overflow);
 }
-
 void inst_cmp(int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg, mem, seg);
     int opB = get_valor(reg[OP2], reg, mem, seg);
@@ -455,7 +465,6 @@ void inst_rnd (int reg[], char mem[], short int seg[][2]) {
     int resultado = rand() % (op_b + 1);
     set_valor(reg[OP1], resultado, reg, mem, seg);
 }
-
 void devuelveNotacionBinaria(int nro,char *s){ //funcion auxiliar para imprimir numeros en binario, recibe un numero y un string donde se guardara la notacion binaria
     char* aux = s,car;int longBits,i;
     longBits = sizeof(nro)*8;
@@ -488,13 +497,34 @@ void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], c
 
     if (tipo == 1) {
         int reg = valor_crudo & 0x1F;
-        registros[reg] = valor_a_guardar;
+        int sector = (valor_crudo >> 5) & 0x03; // Extraemos los 2 bits de sector
+
+        // Aplicamos la máscara correspondiente para sobrescribir solo la parte solicitada
+        if (sector == 1) { // LOW
+            registros[reg] = (registros[reg] & 0xFFFFFF00) | (valor_a_guardar & 0xFF);
+        }
+        else if (sector == 2) { // HIGH
+            registros[reg] = (registros[reg] & 0xFFFF00FF) | ((valor_a_guardar & 0xFF) << 8);
+        }
+        else if (sector == 3) { // 2 BYTES
+            registros[reg] = (registros[reg] & 0xFFFF0000) | (valor_a_guardar & 0xFFFF);
+        }
+        else { // 4 BYTES
+            registros[reg] = valor_a_guardar;
+        }
         return;
     }
 
     if (tipo == 3) {
         short offset = (short)(valor_crudo >> 8);
         int reg = valor_crudo & 0x1F;
+        int modificador = (valor_crudo >> 5) & 0x07; // Extraemos los 3 bits de tamaño
+
+        // Determinamos la cantidad de bytes a escribir
+        int cant_bytes = 4; // Por defecto es long (100)
+        if (modificador == 1) cant_bytes = 1;      // 001: byte (b)
+        else if (modificador == 2) cant_bytes = 2; // 010: word (w)
+
         int puntero_logico = registros[reg];
         int segmento = (puntero_logico >> 16) & 0xFFFF;
         int offset_base = puntero_logico & 0xFFFF;
@@ -505,7 +535,9 @@ void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], c
         }
 
         int offset_final = offset_base + offset;
-        if (offset_final < 0 || (offset_final + 3) >= tablaSegmentos[segmento][1]) {
+
+        // Validación dinámica de límites según la cantidad de bytes a escribir
+        if (offset_final < 0 || (offset_final + cant_bytes - 1) >= tablaSegmentos[segmento][1]) {
             printf("ERROR: Segmentation Fault. Acceso fuera de los limites del segmento.\n");
             exit(1);
         }
@@ -515,16 +547,26 @@ void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], c
         // Carga de registro LAR: Dirección Lógica
         registros[LAR] = (segmento << 16) | (offset_final & 0xFFFF);
 
-        // Carga de registro MAR: Cantidad de bytes (4) + Dirección Física
-        registros[MAR] = (4 << 16) | (dir_fisica & 0xFFFF);
+        // Carga de registro MAR: Cantidad de bytes a escribir + Dirección Física
+        registros[MAR] = (cant_bytes << 16) | (dir_fisica & 0xFFFF);
 
         // Carga de registro MBR: Valor a escribir
         registros[MBR] = valor_a_guardar;
 
-        memoriaPrincipal[dir_fisica]     = (valor_a_guardar >> 24) & 0xFF;
-        memoriaPrincipal[dir_fisica + 1] = (valor_a_guardar >> 16) & 0xFF;
-        memoriaPrincipal[dir_fisica + 2] = (valor_a_guardar >> 8) & 0xFF;
-        memoriaPrincipal[dir_fisica + 3] = valor_a_guardar & 0xFF;
+        // Escritura en memoria respetando el tamaño y truncando los bytes más significativos sobrantes
+        if (cant_bytes == 1) {
+            memoriaPrincipal[dir_fisica] = valor_a_guardar & 0xFF;
+        }
+        else if (cant_bytes == 2) {
+            memoriaPrincipal[dir_fisica]     = (valor_a_guardar >> 8) & 0xFF;
+            memoriaPrincipal[dir_fisica + 1] = valor_a_guardar & 0xFF;
+        }
+        else {
+            memoriaPrincipal[dir_fisica]     = (valor_a_guardar >> 24) & 0xFF;
+            memoriaPrincipal[dir_fisica + 1] = (valor_a_guardar >> 16) & 0xFF;
+            memoriaPrincipal[dir_fisica + 2] = (valor_a_guardar >> 8) & 0xFF;
+            memoriaPrincipal[dir_fisica + 3] = valor_a_guardar & 0xFF;
+        }
         return;
     }
 }
@@ -532,21 +574,40 @@ int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[]
     int tipo = (unsigned int)operando_empaquetado >> 24;
     int valor_crudo = operando_empaquetado & 0x00FFFFFF;
 
-    if (tipo == 0) return 0; // ningun operando
+    if (tipo == 0) return 0; // Ningun operando
 
-    if (tipo == 1) { // registro
+    if (tipo == 1) { // Registro
         int reg = valor_crudo & 0x1F;
-        return registros[reg];
+        int sector = (valor_crudo >> 5) & 0x03; // Extraemos los 2 bits de sector
+        int valor_completo = registros[reg];
+
+        // Retornamos según el sector solicitado propagando signo si es necesario
+        if (sector == 1) { // LOW
+            return (int)((char)(valor_completo & 0xFF));
+        }
+        else if (sector == 2) { // HIGH
+            return (int)((char)((valor_completo >> 8) & 0xFF));
+        }
+        else if (sector == 3) { // 2 BYTE
+            return (int)((short)(valor_completo & 0xFFFF));
+        }
+
+        return valor_completo; // 4 BYTES
     }
 
-    if (tipo == 2) { // inmediato
+    if (tipo == 2) { // Inmediato
         short inmediato = (short)(valor_crudo & 0xFFFF);
         return (int)inmediato;
     }
 
-    if (tipo == 3) { // memoria
+    if (tipo == 3) { // Memoria
         short offset = (short)(valor_crudo >> 8);
         int reg = valor_crudo & 0x1F;
+        int modificador = (valor_crudo >> 5) & 0x07; // Extraemos los 3 bits de tamaño
+
+        int cant_bytes = 4; // Por defecto es long (100)
+        if (modificador == 1) cant_bytes = 1;      // 001: byte (b)
+        else if (modificador == 2) cant_bytes = 2; // 010: word (w)
 
         int puntero_logico = registros[reg];
         int segmento = (puntero_logico >> 16) & 0xFFFF;
@@ -559,8 +620,8 @@ int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[]
 
         int offset_final = offset_base + offset;
 
-        // Verificamos que los 4 bytes que vamos a leer entren en el segmento
-        if (offset_final < 0 || (offset_final + 3) >= tablaSegmentos[segmento][1]) {
+        // Verificamos que todos los bytes que vamos a leer entren en el segmento
+        if (offset_final < 0 || (offset_final + cant_bytes - 1) >= tablaSegmentos[segmento][1]) {
             printf("ERROR: Segmentation Fault. Acceso fuera de los limites del segmento.\n");
             exit(1);
         }
@@ -570,13 +631,27 @@ int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[]
         // Carga de registro LAR: Dirección Lógica (Segmento + Offset Final)
         registros[LAR] = (segmento << 16) | (offset_final & 0xFFFF);
 
-        // Carga de registro MAR: Cantidad de bytes (4) + Dirección Física
-        registros[MAR] = (4 << 16) | (dir_fisica & 0xFFFF);
+        // Carga de registro MAR: Cantidad de bytes a leer + Dirección Física
+        registros[MAR] = (cant_bytes << 16) | (dir_fisica & 0xFFFF);
 
-        int dato = ((memoriaPrincipal[dir_fisica] & 0xFF) << 24) |
+        int dato = 0;
+
+        // Lectura de memoria respetando el tamaño y propagando signo a 32 bits
+        if (cant_bytes == 1) {
+            char b = memoriaPrincipal[dir_fisica];
+            dato = (int)b;
+        }
+        else if (cant_bytes == 2) {
+            short w = (short)(((memoriaPrincipal[dir_fisica] & 0xFF) << 8) |
+                              (memoriaPrincipal[dir_fisica + 1] & 0xFF));
+            dato = (int)w;
+        }
+        else {
+            dato = ((memoriaPrincipal[dir_fisica] & 0xFF) << 24) |
                    ((memoriaPrincipal[dir_fisica + 1] & 0xFF) << 16) |
                    ((memoriaPrincipal[dir_fisica + 2] & 0xFF) << 8) |
                    (memoriaPrincipal[dir_fisica + 3] & 0xFF);
+        }
 
         // Carga de registro MBR: Valor leído de memoria
         registros[MBR] = dato;
