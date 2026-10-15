@@ -1,4 +1,3 @@
-
 int saltoValido(int destino, short int seg[][2]);
 void inst_sys (int reg[], char mem[], short int seg[][2]);
 void inst_jmp (int reg[], char mem[], short int seg[][2]);
@@ -12,6 +11,10 @@ void inst_jnn (int reg[], char mem[], short int seg[][2]);
 void inst_jnz (int reg[], char mem[], short int seg[][2]);
 void inst_not (int reg[], char mem[], short int seg[][2]);
 void inst_invalida(int reg[], char mem[], short int seg[][2]); // para las funciones que todavia no desbloqueamos
+void inst_push(int reg[], char mem[], short int seg[][2]);
+void inst_pop(int reg[], char mem[], short int seg[][2]);
+void inst_call(int reg[], char mem[], short int seg[][2]);
+void inst_ret(int reg[], char mem[], short int seg[][2]);
 void inst_stop(int reg[], char mem[], short int seg[][2]);
 void inst_mov (int reg[], char mem[], short int seg[][2]);
 void inst_add (int reg[], char mem[], short int seg[][2]);
