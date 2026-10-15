@@ -87,21 +87,32 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
 
                     // 2. Mostrar el prompt
                     printf("[%04X]: ", dir_fisica_actual);
+                    int formato = reg[EAX];
+                    int hexa = formato & 0x08;
+                    int decimal = formato & 0x01;
+                    int octal = formato & 0x04;
+                    int binario = formato & 0x10;
+                    int caracter = formato & 0x02;
 
-                    // 3. Imprimir el dato (Tu switch original intacto)
-                    if(((reg[EAX] & 0xF0) == 0x10)){
+                    if(binario == 0x10){
                         char *s = (char *)malloc(sizeof(valor_a_escribir)*8+1);
                         devuelveNotacionBinaria(valor_a_escribir, s);
-                        printf("%s\n", s);
+                        printf("0b%s\n", s);
                         free(s);
-                    } else {
-                        switch(reg[EAX] & 0xF){
-                            case 0x1: printf("%d\n", valor_a_escribir); break;
-                            case 0x2: printf("%c\n", valor_a_escribir); break;
-                            case 0x4: printf("%o\n", valor_a_escribir); break;
-                            case 0x8: printf("%X\n", valor_a_escribir); break;
-                        }
                     }
+                    if (hexa == 0x08) {
+                        printf("0x%X ", valor_a_escribir);
+                    }
+                    if (octal == 0x04) {
+                        printf("%o ", valor_a_escribir);
+                    }
+                    if (caracter == 0x02) {
+                        printf("%c ", valor_a_escribir);
+                    }
+                    if (decimal == 0x01) {
+                        printf("%d ", valor_a_escribir);
+                    }
+                    printf("\n");
                 }
             }
         }
