@@ -2,8 +2,12 @@
 #include "utilidades.h"
 #include <stdio.h>
 #include <stdlib.h>
-char *vmi_actual = NULL;
-int ram_actual = 0;
+#include <string.h>
+
+char *vmi_actual = NULL;     // archivo .vmi recibido por parametro (NULL si no hay)
+int ram_actual = 0;          // tamanio de la memoria principal en bytes
+int bp_anidado = 0;          // 1 si la ultima instruccion ejecutada fue un breakpoint
+
 int saltoValido(int destino, short int seg[][2]) {
     int limiteCodeSeg = seg[0][1];
 
@@ -13,10 +17,24 @@ int saltoValido(int destino, short int seg[][2]) {
     return 1;
 }
 void inst_sys (int reg[], char mem[], short int seg[][2]) {
-    int op_a = get_valor(reg[OP1],reg,mem,seg);
+    int op_a;
+    int c;
 
-    // Solo validamos limites si es lectura (1) o escritura (2)
-    if(op_a == 1 || op_a == 2){
+    op_a = get_valor(reg[OP1],reg,mem,seg);
+
+    switch (op_a) {
+
+    case 0x0: // CLEAR SCREEN: no usa ni modifica registros
+        fflush(stdout);
+#ifdef _WIN32   // elige entre usar la sintaxis del clear de windows o linux en base a los requerimentos del sistema
+        system("cls");
+#else
+        system("clear");
+#endif
+        break;
+
+    case 0x1: // READ
+    case 0x2: { // WRITE
         int cantByte = (reg[ECX] >> 16) & 0xFFFF; //cantidad de bytes a leer/escribir
         int cantValores = reg[ECX] & 0xFFFF; //cantidad de valores a leer/escribir
         int segmento    = (reg[EDX] >> 16) & 0xFFFF;
@@ -54,7 +72,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                     } else {
                         switch(reg[EAX] & 0xF){
                             case 0x1: scanf("%d", &valor_a_guardar); break;
-                            case 0x2: { char c; scanf(" %c", &c); valor_a_guardar = (int)c; } break;
+                            case 0x2: { char ch; scanf(" %c", &ch); valor_a_guardar = (int)ch; } break;
                             case 0x4: scanf("%o", &valor_a_guardar); break;
                             case 0x8: scanf("%X", &valor_a_guardar); break;
                         }
@@ -69,8 +87,11 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                     for(int j=0; j<cantByte; j++)
                         mem[dir_fisica_actual+j] = (valor_a_guardar >> (8*(cantByte-1-j))) & 0xFF;
                 }
+                // scanf deja el '\n' en el teclado: si no se descarta, el proximo
+                // breakpoint lo toma como un Enter y entra en modo paso a paso
+                while ((c = getchar()) != '\n' && c != EOF);
             }
-            else if(op_a == 2){ // Para escritura
+            else { // Para escritura
                 for(int i = 0; i < cantValores; i++){
                     int offset_actual = offset_base + (i * cantByte);
                     int dir_fisica_actual = edx + (i * cantByte);
@@ -117,6 +138,168 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                 }
             }
         }
+        break;
+    }
+
+    case 0x3: { // STRING READ: lee una linea y la guarda desde [EDX] terminada en '\0'
+        int segmento = (reg[EDX] >> 16) & 0xFFFF;
+        int offset   = reg[EDX] & 0xFFFF;
+        if (segmento > 7 || seg[segmento][0] == -1 || offset >= seg[segmento][1]) {
+            printf("Fallo de segmento\n");
+            exit(1);
+        }
+        int base       = seg[segmento][0];
+        int disponible = seg[segmento][1] - offset; // bytes hasta el fin del segmento
+        int maximo     = reg[ECX];                  // -1: sin limite
+        int i = 0;
+
+        while ((c = getchar()) != '\n' && c != EOF) {
+            if (c == '\r')
+                continue;                           // por si la entrada viene de Windows
+            if (maximo >= 0 && i >= maximo)
+                continue;                           // supera maximo, se descarta
+            if (i + 1 >= disponible) {              // no entra caracter mas el '\0'
+                printf("Fallo de segmento\n");
+                exit(1);
+            }
+            mem[base + offset + i] = (char)c;
+            i++;
+        }
+        mem[base + offset + i] = '\0';
+        break;
+    }
+
+    case 0x4: { // STRING WRITE: imprime desde [EDX] hasta el '\0'
+        int segmento = (reg[EDX] >> 16) & 0xFFFF;
+        int offset   = reg[EDX] & 0xFFFF;
+        if (segmento > 7 || seg[segmento][0] == -1 || offset >= seg[segmento][1]) {
+            printf("Fallo de segmento\n");
+            exit(1);
+        }
+        int base   = seg[segmento][0];
+        int limite = seg[segmento][1];
+        int fin    = offset;
+
+        while (fin < limite && mem[base + fin] != '\0')
+            fin++;
+        if (fin >= limite) { // string no termina dentro del segmento
+            printf("Fallo de segmento\n");
+            exit(1);
+        }
+        fwrite(&mem[base + offset], 1, fin - offset, stdout);
+        fflush(stdout);
+        break;
+    }
+
+    case 0xF: { // BREAKPOINT
+        if (vmi_actual == NULL) // si no hay vmi se ignora
+            break;
+        bp_anidado = 1;
+
+        while (1) {
+            // 1. Imagen: header + 32 registros + tabla de segmentos + memoria (big endian)
+            FILE *arch = fopen(vmi_actual, "wb");
+            if (arch == NULL) {
+                printf("ERROR: no se pudo crear el archivo de imagen %s\n", vmi_actual);
+                exit(1);
+            }
+            unsigned char header[8] = { 'V', 'M', 'I', '2', '6', 1,
+                                        ((ram_actual / 1024) >> 8) & 0xFF, (ram_actual / 1024) & 0xFF };
+            fwrite(header, 1, 8, arch);
+
+            for (int i = 0; i < 32; i++) {
+                unsigned char b[4] = { (reg[i] >> 24) & 0xFF, (reg[i] >> 16) & 0xFF,
+                                       (reg[i] >> 8) & 0xFF,  reg[i] & 0xFF };
+                fwrite(b, 1, 4, arch);
+            }
+            for (int i = 0; i < 8; i++) {
+                unsigned char b[4] = { (seg[i][0] >> 8) & 0xFF, seg[i][0] & 0xFF,    // base
+                                       (seg[i][1] >> 8) & 0xFF, seg[i][1] & 0xFF };  // tamanio
+                fwrite(b, 1, 4, arch);
+            }
+            fwrite(mem, 1, ram_actual, arch);
+            fclose(arch);
+
+            // 2. Espera la accion del usuario: g, q o Enter
+            char linea[32];
+            int accion = 0;                         // 'g' o '\n'
+            while (accion == 0) {
+                printf("[breakpoint] g: continuar | q: salir | Enter: paso a paso > ");
+                fflush(stdout);
+
+                if (fgets(linea, sizeof(linea), stdin) == NULL)  // sin entrada: continua
+                    accion = 'g';
+                else {
+                    if (strchr(linea, '\n') == NULL)             // linea mas larga que el buffer
+                        while ((c = getchar()) != '\n' && c != EOF);
+
+                    if (linea[0] == '\n' || linea[0] == '\r')
+                        accion = '\n';
+                    else if (linea[0] == 'g' || linea[0] == 'G')
+                        accion = 'g';
+                    else if (linea[0] == 'q' || linea[0] == 'Q')
+                        exit(0);                                 // vmi queda guardado
+                    // cualquier otra tecla: se vuelve a preguntar
+                }
+            }
+            if (accion == 'g')
+                break;                              // ejecutarProceso sigue normalmente
+
+            // 3. Enter: se ejecuta una instruccion y se vuelve a pausar.
+            // Si programa ya termino, no hay mas a ejecutar.
+            int seg_ip = (reg[IP] >> 16) & 0xFFFF;
+            int off_ip = reg[IP] & 0xFFFF;
+            if (reg[IP] == -1 || seg_ip > 7 || seg[seg_ip][0] == -1 || off_ip >= seg[seg_ip][1])
+                break;
+
+            // lectura y decodificacion: lo mismo que hace ejecutarProceso
+            int pc = seg[seg_ip][0] + off_ip;
+            unsigned char primer_byte = mem[pc];
+            int opcode, tipoA, tipoB;
+            if ((primer_byte & 0x30) == 0) {
+                opcode = primer_byte & 0x1F;
+                tipoA = (primer_byte >> 6) & 0x03;
+                tipoB = 0;
+            } else {
+                opcode = (primer_byte & 0x0F) | 0x10;
+                tipoA = (primer_byte >> 4) & 0x03;
+                tipoB = (primer_byte >> 6) & 0x03;
+            }
+            reg[OPC] = opcode;
+            reg[IP] += (1 + tipoA + tipoB);
+
+            int valorA = 0, valorB = 0;
+            int pos = pc + 1;
+            if (tipoB == 1) { valorB = mem[pos] & 0xFF; pos += 1; }
+            else if (tipoB == 2) { valorB = (short)(((mem[pos] & 0xFF) << 8) | (mem[pos+1] & 0xFF)); pos += 2; }
+            else if (tipoB == 3) { valorB = ((mem[pos] & 0xFF) << 16) | ((mem[pos+1] & 0xFF) << 8) | (mem[pos+2] & 0xFF); pos += 3; }
+            if (tipoA == 1) { valorA = mem[pos] & 0xFF; }
+            else if (tipoA == 2) { valorA = (short)(((mem[pos] & 0xFF) << 8) | (mem[pos+1] & 0xFF)); }
+            else if (tipoA == 3) { valorA = ((mem[pos] & 0xFF) << 16) | ((mem[pos+1] & 0xFF) << 8) | (mem[pos+2] & 0xFF); }
+
+            reg[OP1] = (tipoA == 0) ? 0 : ((tipoA << 24) | (valorA & 0x00FFFFFF));
+            reg[OP2] = (tipoB == 0) ? 0 : ((tipoB << 24) | (valorB & 0x00FFFFFF));
+
+            bp_anidado = 0;
+            operaciones[opcode](reg, mem, seg);
+
+            // si instruccion fue otro SYS F, breakpoint ya hizo su pausa
+            if (bp_anidado)
+                break;
+
+            // si con esa instruccion termina programa, no se pausa de nuevo
+            seg_ip = (reg[IP] >> 16) & 0xFFFF;
+            off_ip = reg[IP] & 0xFFFF;
+            if (reg[IP] == -1 || seg_ip > 7 || seg[seg_ip][0] == -1 || off_ip >= seg[seg_ip][1])
+                break;
+        }
+        bp_anidado = 1;
+        break;
+    }
+
+    default:
+        printf("ERROR: llamada al sistema invalida (SYS %X).\n", op_a);
+        exit(1);
     }
 }
 void inst_jmp (int reg[], char mem[], short int seg[][2]) {
