@@ -8,13 +8,10 @@ char *vmi_actual = NULL;     // archivo .vmi recibido por parametro (NULL si no 
 int ram_actual = 0;          // tamanio de la memoria principal en bytes
 int bp_anidado = 0;          // 1 si la ultima instruccion ejecutada fue un breakpoint
 
-int saltoValido(int destino, short int seg[][2]) {
-    int limiteCodeSeg = seg[0][1];
-
-    if (destino < 0 || destino >= limiteCodeSeg) {
-        return 0;
-    }
-    return 1;
+int saltoValido(int destino, int reg[], short int seg[][2]) {
+    int idx_cs = (reg[CS] >> 16) & 0xFFFF;
+    int limiteCodeSeg = (unsigned short)seg[idx_cs][1];
+    return destino >= 0 && destino < limiteCodeSeg;
 }
 void inst_sys (int reg[], char mem[], short int seg[][2]) {
     int op_a;
@@ -304,112 +301,122 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
 }
 void inst_jmp (int reg[], char mem[], short int seg[][2]) {
     int op = get_valor(reg[OP1],reg,mem,seg);
-    if (saltoValido(op, seg))
-        reg[IP] = op; //carga en ip el valor de op
+
+    if (saltoValido(op, reg, seg))
+        reg[IP] = (reg[CS] & 0xFFFF0000) | (op & 0xFFFF); // Mantiene el segmento, actualiza offset
     else {
         printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
         exit(1);
     }
 }
+
 void inst_jp  (int reg[], char mem[], short int seg[][2]) {
-    int n = (reg[CC] >> 31) & 0x1; //bit de signo negativo
-    int z = (reg[CC] >> 30) & 0x1; //bit de cero
-    
-    if(n == 0 && z == 0){ //bit de signo negativo es 0 y bit de cero es 0, entonces es positivo
+    int n = (reg[CC] >> 31) & 0x1;
+    int z = (reg[CC] >> 30) & 0x1;
+
+    if(n == 0 && z == 0){
         int op = get_valor(reg[OP1],reg,mem,seg);
-        if (saltoValido(op, seg))
-            reg[IP] = op; //carga en ip el valor de op
+        if (saltoValido(op, reg, seg))
+            reg[IP] = (reg[CS] & 0xFFFF0000) | (op & 0xFFFF);
         else{
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
         }
-
     }
 }
+
 void inst_jn  (int reg[], char mem[], short int seg[][2]) {
-    int n = (reg[CC] >> 31) & 0x1; //bit de signo negativo
+    int n = (reg[CC] >> 31) & 0x1;
 
-    if(n == 1){ //si el bit de signo negativo es 1, entonces es negativo
+    if(n == 1){
         int op = get_valor(reg[OP1],reg,mem,seg);
-        if (saltoValido(op, seg))
-            reg[IP] = op; //carga en ip el valor de op
+        if (saltoValido(op, reg, seg))
+            reg[IP] = (reg[CS] & 0xFFFF0000) | (op & 0xFFFF);
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
         }
     }
 }
-void inst_jz  (int reg[], char mem[], short int seg[][2]){
-    int z = (reg[CC] >> 30) & 0x1; //bit de cero
 
-    if(z == 1){ //si el bit de cero es 1, entonces el numero es cero
-        int op = get_valor(reg[2],reg,mem,seg);
-        if (saltoValido(op, seg))
-            reg[IP] = op; //carga en ip el valor de op
+void inst_jz  (int reg[], char mem[], short int seg[][2]){
+    int z = (reg[CC] >> 30) & 0x1;
+
+    if(z == 1){
+        int op = get_valor(reg[OP1],reg,mem,seg); // CORREGIDO: antes decía reg[2]
+        if (saltoValido(op, reg, seg))
+            reg[IP] = (reg[CS] & 0xFFFF0000) | (op & 0xFFFF);
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
         }
     }
 }
+
 void inst_jc  (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg, mem, seg);
-    int carry = (reg[CC] >> 29) & 1; // obtiene el valor del carry 0 o 1
-    if (carry) { // si hay carry comprueba que el salto sea valido
-        if (saltoValido(opA, seg))
-            reg[IP] = opA;
+    int carry = (reg[CC] >> 29) & 1;
+
+    if (carry) {
+        if (saltoValido(opA, reg, seg))
+            reg[IP] = (reg[CS] & 0xFFFF0000) | (opA & 0xFFFF);
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
         }
     }
 }
+
 void inst_jv  (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
-    int overflow = (reg[CC] >> 28) & 1; // obtiene el valor del overflow 0 o 1
-    if (overflow) { // si hay overflow comprueba que el salto sea valido
-        if (saltoValido(opA, seg))
-            reg[IP] = opA;
+    int overflow = (reg[CC] >> 28) & 1;
+
+    if (overflow) {
+        if (saltoValido(opA, reg, seg))
+            reg[IP] = (reg[CS] & 0xFFFF0000) | (opA & 0xFFFF);
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
         }
     }
 }
+
 void inst_jnp (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int negativo = (reg[CC] >> 31) & 1;
     int zero = (reg[CC] >> 30) & 1;
 
     if (zero || negativo) {
-        if (saltoValido(opA, seg))
-            reg[IP] = opA;
+        if (saltoValido(opA, reg, seg))
+            reg[IP] = (reg[CS] & 0xFFFF0000) | (opA & 0xFFFF);
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
         }
     }
 }
+
 void inst_jnn (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int negativo = (reg[CC] >> 31) & 1;
 
     if (!negativo) {
-        if (saltoValido(opA, seg))
-            reg[IP] = opA;
+        if (saltoValido(opA, reg, seg))
+            reg[IP] = (reg[CS] & 0xFFFF0000) | (opA & 0xFFFF);
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
         }
     }
 }
+
 void inst_jnz (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int zero = (reg[CC] >> 30) & 1;
 
     if (!zero) {
-        if (saltoValido(opA, seg))
-            reg[IP] = opA;
+        if (saltoValido(opA, reg, seg))
+            reg[IP] = (reg[CS] & 0xFFFF0000) | (opA & 0xFFFF);
         else {
             printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
             exit(1);
@@ -428,16 +435,96 @@ void inst_invalida(int reg[], char mem[], short int seg[][2]){
     exit(1);
 }
 void inst_push(int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg,mem, seg);
+    int offsetSp = (reg[SP] & 0xfff) - 4;
+    if (offsetSp < 0) {
+        printf("ERROR: STACK OVERFLOW\n");
+        exit(1);
+    }
+    int indiceSS = (reg[SS]>>16) & 0xffff;
+    int dirFisica = (unsigned short)seg[indiceSS][0] + offsetSp;
+
+    // guardo valor del opA respetando el bigendian
+    mem[dirFisica] = (opA >> 24) & 0xff;
+    mem[dirFisica + 1] = (opA >> 16) & 0xff;
+    mem[dirFisica + 2] = (opA >> 8)  & 0xff;
+    mem[dirFisica + 3] = opA & 0xff;
+
+    reg[SP] = (reg[SS] & 0xFFFF0000) | (offsetSp & 0xFFFF); // actualizo sp con el nuevo offset por haber hecho push en la pila
+
 
 }
 void inst_pop(int reg[], char mem[], short int seg[][2]) {
+    int offsetSP = reg[SP] & 0xFFFF;
 
+    int idiceSS = (reg[SS] >> 16) & 0xFFFF;
+    int limiteSS = (unsigned short)seg[idiceSS][1];
+
+    if (offsetSP + 4 > limiteSS) { // si la pila esta vacia no puedo sacar nada
+        printf("ERROR: STACK UNDERFLOW\n");
+        exit(1);
+    }
+    int dirFisica = (unsigned short)seg[idiceSS][0] + offsetSP;
+
+    int extraido = ((mem[dirFisica] & 0xFF) << 24) |
+                   ((mem[dirFisica + 1] & 0xFF) << 16) |
+                   ((mem[dirFisica + 2] & 0xFF) << 8) |
+                   (mem[dirFisica + 3] & 0xFF);
+
+    set_valor(reg[OP1], extraido, reg, mem, seg);
+    reg[SP] = (reg[SS] & 0xFFFF0000) | ((offsetSP + 4) & 0xFFFF);
 }
 void inst_call(int reg[], char mem[], short int seg[][2]) {
+    int opA = get_valor(reg[OP1], reg, mem, seg);
+    int offsetSP = (reg[SP] & 0xFFFF) - 4;
 
+    if (offsetSP < 0) {
+        printf("ERROR: STACK OVERFLOW\n");
+        exit(1);
+    }
+
+    int idiceSS = (reg[SS] >> 16) & 0xFFFF;
+    int dirFisica = (unsigned short)seg[idiceSS][0] + offsetSP;
+
+    int valIP = reg[IP];
+    mem[dirFisica]     = (valIP >> 24) & 0xFF;
+    mem[dirFisica + 1] = (valIP >> 16) & 0xFF;
+    mem[dirFisica + 2] = (valIP >> 8)  & 0xFF;
+    mem[dirFisica + 3] = valIP & 0xFF;
+
+    reg[SP] = (reg[SS] & 0xFFFF0000) | (offsetSP & 0xFFFF);
+
+    if (saltoValido(opA, reg, seg)) {
+        reg[IP] = (reg[CS] & 0xFFFF0000) | (opA & 0xFFFF);
+    } else {
+        printf("ERROR: Segmentation Fault. Salto fuera del Code Segment.\n");
+        exit(1);
+    }
 }
 void inst_ret(int reg[], char mem[], short int seg[][2]) {
+    int offsetSP = reg[SP] & 0xFFFF;
+    int idiceSS = (reg[SS] >> 16) & 0xFFFF;
+    int limiteSS = (unsigned short)seg[idiceSS][1];
 
+
+    if (offsetSP + 4 > limiteSS) {
+        printf("STACK UNDERFLOW\n");
+        exit(1);
+    }
+
+    int dirFisica = (unsigned short)seg[idiceSS][0] + offsetSP;
+
+    // Extraemos la dirección de retorno q esta en la pila
+    int valIP = ((mem[dirFisica] & 0xFF) << 24) |
+                ((mem[dirFisica + 1] & 0xFF) << 16) |
+                ((mem[dirFisica + 2] & 0xFF) << 8) |
+                (mem[dirFisica + 3] & 0xFF);
+
+    // Retauramos el ip para volver
+    reg[IP] = valIP;
+
+    // Actualizamos el SP
+    reg[SP] = (reg[SS] & 0xFFFF0000) | ((offsetSP + 4) & 0xFFFF);
 }
 void inst_stop(int reg[], char mem[], short int seg[][2]) {
     reg[IP] = -1; //carga en ip, -1 para indicar que termino la ejecucion del programa
@@ -589,7 +676,8 @@ void inst_shl (int reg[], char mem[], short int seg[][2]) {
         carry = (ua >> (32 - shift)) & 1;
     }
 
-    int overflow = ((op_a > 0 && resultado < 0) || (op_a < 0 && resultado > 0)) ? 1 : 0;
+    long long real = (long long)op_a * (1LL << shift);
+    int overflow = (real != resultado) ? 1 : 0;
 
     set_valor(reg[OP1], resultado, reg, mem, seg);
     actualizarCC(reg, resultado, carry, overflow);
