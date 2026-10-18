@@ -5,21 +5,17 @@
 #include "utilidades.h"
 #include "disassembler.h"
 
-int condicionProceso(int ip, short int tablaSegmentos[8][2]) {
-    if (ip == -1) // si es stop
-        return 0;
-
+int condicionProceso(int ip, short int tablaSegmentos[8][2], int registros[32]) {
+    if (ip == -1) return 0;
     int segmento = (ip >> 16) & 0xFFFF;
     int offset = ip & 0xFFFF;
-    if (segmento < 0 || segmento > 7 || tablaSegmentos[segmento][0] == -1) {
-        printf("FALLO DE SEGMENTO: Segmento invalido.\n");
-        exit(1);
-    }
-    if (offset >= tablaSegmentos[segmento][1]) {
-        // Fin natural del programa (IP apunta fuera del Code Segment).
-        // Se omite el Fallo de Segmento por ser lectura de instrucción.
+    int segmento_codigo = (registros[CS] >> 16) & 0xFFFF;
+
+    // Solo sigue si el IP apunta específicamente al Code Segment
+    if (segmento != segmento_codigo)
         return 0;
-    }
+    if (offset >= (unsigned short)tablaSegmentos[segmento][1])
+        return 0;
     return 1;
 }
 void ejecutarProceso(char memoriaPrincipal[], int registros[32], short int tablaSegmentos[8][2]) {
@@ -94,19 +90,15 @@ void ejecutarProceso(char memoriaPrincipal[], int registros[32], short int tabla
     }
 }
 int calcularTamPS(char* nombreVmx, int numParametros, char** argsProceso) {
-    if (nombreVmx == NULL) {
+    if (nombreVmx == NULL || argsProceso == NULL) {
         return 0;
     }
-    int tamPS = 0;
-    tamPS += strlen(nombreVmx) + 1; // sumo tamano del nombre
-
+    int tamPS = strlen(nombreVmx) + 1;
     for (int i = 0; i < numParametros; i++) {
         tamPS += strlen(argsProceso[i]) + 1;
     }
-
     int argc_total = numParametros + 1;
     tamPS += (argc_total * 4);
-
     return tamPS;
 }
 void configurarSegmentos(short int tablaSegmentos[8][2], int registros[32],

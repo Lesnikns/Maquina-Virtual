@@ -18,7 +18,7 @@ const char* mnemonicos[32] = {
 };
 
 const char* nom_regs[32] = {
-    "IP", "OPC", "OP1", "OP2", "LAR", "MAR", "MBR", "RES", "RES", "RES",
+    "IP", "OPC", "OP1", "OP2", "LAR", "MAR", "MBR", "SP", "BP", "RES",
     "EAX", "EBX", "ECX", "EDX", "EEX", "EFX", "AC", "CC", "RES", "RES",
     "RES", "RES", "RES", "RES", "RES", "RES", "CS", "DS", "ES", "SS",
     "KS", "PS"
