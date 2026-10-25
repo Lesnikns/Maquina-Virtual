@@ -1,8 +1,32 @@
 #include "utilidades.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "instrucciones.h"
 
 
-
+void leerExacto(void *dst, size_t n, FILE *arch) {
+    if (fread(dst, 1, n, arch) != n) {
+        printf("Error: archivo truncado o corrupto.\n");
+        fclose(arch);
+        exit(1);
+    }
+}
+unsigned short leerUShortEndian(FILE *arch) {
+    unsigned char b[2];
+    leerExacto(b, 2, arch);
+    return (unsigned short)((b[0] << 8) | b[1]);
+}
+short int leerShortEndian(FILE *arch) {
+    return (short int)leerUShortEndian(arch);
+}
+int leerIntEndian(FILE *arch) {
+    unsigned char b[4];
+    leerExacto(b, 4, arch);
+    return (int)(((unsigned int)b[0] << 24) | ((unsigned int)b[1] << 16) |
+                 ((unsigned int)b[2] << 8)  |  (unsigned int)b[3]);
+}
 InstruccionFunc operaciones[32] = {
     inst_sys, inst_jmp, inst_jp,  inst_jn,  inst_jz,  inst_jc,  inst_jv,  inst_jnp,
     inst_jnn, inst_jnz, inst_not, inst_push, inst_pop, inst_call, inst_ret, inst_stop,
@@ -23,3 +47,4 @@ const char* nom_regs[32] = {
     "RES", "RES", "RES", "RES", "RES", "RES", "CS", "DS", "ES", "SS",
     "KS", "PS"
 };
+

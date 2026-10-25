@@ -141,12 +141,12 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
     case 0x3: { // STRING READ: lee una linea y la guarda desde [EDX] terminada en '\0'
         int segmento = (reg[EDX] >> 16) & 0xFFFF;
         int offset   = reg[EDX] & 0xFFFF;
-        if (segmento > 7 || seg[segmento][0] == -1 || offset >= seg[segmento][1]) {
+        if (segmento > 7 || seg[segmento][0] == -1 || offset >= (unsigned short)seg[segmento][1]) {
             printf("Fallo de segmento\n");
             exit(1);
         }
-        int base       = seg[segmento][0];
-        int disponible = seg[segmento][1] - offset; // bytes hasta el fin del segmento
+        int base       = (unsigned short)seg[segmento][0];
+        int disponible = (unsigned short)seg[segmento][1] - offset; // bytes hasta el fin del segmento
         int maximo     = reg[ECX];                  // -1: sin limite
         int i = 0;
 
@@ -169,12 +169,12 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
     case 0x4: { // STRING WRITE: imprime desde [EDX] hasta el '\0'
         int segmento = (reg[EDX] >> 16) & 0xFFFF;
         int offset   = reg[EDX] & 0xFFFF;
-        if (segmento > 7 || seg[segmento][0] == -1 || offset >= seg[segmento][1]) {
+        if (segmento > 7 || seg[segmento][0] == -1 || offset >= (unsigned short)seg[segmento][1]) {
             printf("Fallo de segmento\n");
             exit(1);
         }
-        int base   = seg[segmento][0];
-        int limite = seg[segmento][1];
+        int base   = (unsigned short)seg[segmento][0];
+        int limite = (unsigned short)seg[segmento][1];
         int fin    = offset;
 
         while (fin < limite && mem[base + fin] != '\0')
@@ -246,11 +246,11 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             // Si programa ya termino, no hay mas a ejecutar.
             int seg_ip = (reg[IP] >> 16) & 0xFFFF;
             int off_ip = reg[IP] & 0xFFFF;
-            if (reg[IP] == -1 || seg_ip > 7 || seg[seg_ip][0] == -1 || off_ip >= seg[seg_ip][1])
+            if (reg[IP] == -1 || seg_ip > 7 || seg[seg_ip][0] == -1 || off_ip >= (unsigned short)seg[seg_ip][1])
                 break;
 
             // lectura y decodificacion: lo mismo que hace ejecutarProceso
-            int pc = seg[seg_ip][0] + off_ip;
+            int pc = (unsigned short)seg[seg_ip][0] + off_ip;
             unsigned char primer_byte = mem[pc];
             int opcode, tipoA, tipoB;
             if ((primer_byte & 0x30) == 0) {
@@ -435,12 +435,16 @@ void inst_invalida(int reg[], char mem[], short int seg[][2]){
     exit(1);
 }
 void inst_push(int reg[], char mem[], short int seg[][2]) {
-    int opA = get_valor(reg[OP1], reg,mem, seg);
-    int offsetSp = (reg[SP] & 0xfff) - 4;
+    if (reg[SS] == -1) {
+        printf("ERROR: STACK OVERFLOW\n");
+        exit(1);
+    }
+    int offsetSp = (reg[SP] & 0xffff) - 4;
     if (offsetSp < 0) {
         printf("ERROR: STACK OVERFLOW\n");
         exit(1);
     }
+    int opA = get_valor(reg[OP1], reg,mem, seg);
     int indiceSS = (reg[SS]>>16) & 0xffff;
     int dirFisica = (unsigned short)seg[indiceSS][0] + offsetSp;
 
@@ -455,6 +459,10 @@ void inst_push(int reg[], char mem[], short int seg[][2]) {
 
 }
 void inst_pop(int reg[], char mem[], short int seg[][2]) {
+    if (reg[SS] == -1) {
+        printf("ERROR: STACK OVERFLOW\n");
+        exit(1);
+    }
     int offsetSP = reg[SP] & 0xFFFF;
 
     int idiceSS = (reg[SS] >> 16) & 0xFFFF;
@@ -475,14 +483,17 @@ void inst_pop(int reg[], char mem[], short int seg[][2]) {
     reg[SP] = (reg[SS] & 0xFFFF0000) | ((offsetSP + 4) & 0xFFFF);
 }
 void inst_call(int reg[], char mem[], short int seg[][2]) {
-    int opA = get_valor(reg[OP1], reg, mem, seg);
+    if (reg[SS] == -1) {
+        printf("ERROR: STACK OVERFLOW\n");
+        exit(1);
+    }
     int offsetSP = (reg[SP] & 0xFFFF) - 4;
 
     if (offsetSP < 0) {
         printf("ERROR: STACK OVERFLOW\n");
         exit(1);
     }
-
+    int opA = get_valor(reg[OP1], reg, mem, seg);
     int idiceSS = (reg[SS] >> 16) & 0xFFFF;
     int dirFisica = (unsigned short)seg[idiceSS][0] + offsetSP;
 
@@ -502,6 +513,10 @@ void inst_call(int reg[], char mem[], short int seg[][2]) {
     }
 }
 void inst_ret(int reg[], char mem[], short int seg[][2]) {
+    if (reg[SS] == -1) {
+        printf("ERROR: STACK OVERFLOW\n");
+        exit(1);
+    }
     int offsetSP = reg[SP] & 0xFFFF;
     int idiceSS = (reg[SS] >> 16) & 0xFFFF;
     int limiteSS = (unsigned short)seg[idiceSS][1];
@@ -812,7 +827,7 @@ void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], c
             exit(1);
         }
 
-        int dir_fisica = tablaSegmentos[segmento][0] + offset_final;
+        int dir_fisica = (unsigned short)tablaSegmentos[segmento][0] + offset_final;
 
         // Carga de registro LAR: Dirección Lógica
         registros[LAR] = (segmento << 16) | (offset_final & 0xFFFF);
@@ -891,12 +906,12 @@ int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[]
         int offset_final = offset_base + offset;
 
         // Verificamos que todos los bytes que vamos a leer entren en el segmento
-        if (offset_final < 0 || (offset_final + cant_bytes - 1) >= tablaSegmentos[segmento][1]) {
+        if (offset_final < 0 || (offset_final + cant_bytes - 1) >= (unsigned short)tablaSegmentos[segmento][1]) {
             printf("ERROR: Segmentation Fault. Acceso fuera de los limites del segmento.\n");
             exit(1);
         }
 
-        int dir_fisica = tablaSegmentos[segmento][0] + offset_final;
+        int dir_fisica = (unsigned short)tablaSegmentos[segmento][0] + offset_final;
 
         // Carga de registro LAR: Dirección Lógica (Segmento + Offset Final)
         registros[LAR] = (segmento << 16) | (offset_final & 0xFFFF);

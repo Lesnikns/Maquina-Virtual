@@ -38,7 +38,7 @@ gcc -Wall main.c instrucciones.c utilidades.c disassembler.c -o maquinavirtual.e
 .\maquinavirtual.exe main.vmx -d
 
 ```
-**Para ejecutar la imagen:**
+**Para ejecutar la imagen, en otra terminal:**
 ```bash
 .\vmg.exe imagen.vmi -r -s
 

@@ -4,6 +4,8 @@
 #include <time.h>
 #include "utilidades.h"
 #include "disassembler.h"
+#include "instrucciones.h"
+
 
 int condicionProceso(int ip, short int tablaSegmentos[8][2], int registros[32]) {
     if (ip == -1) return 0;
@@ -23,7 +25,7 @@ void ejecutarProceso(char memoriaPrincipal[], int registros[32], short int tabla
 
         int segmento_ip = (registros[IP] >> 16) & 0xFFFF;
         int offset_ip = registros[IP] & 0xFFFF;
-        int pc = tablaSegmentos[segmento_ip][0] + offset_ip;
+        int pc = (unsigned short)tablaSegmentos[segmento_ip][0] + offset_ip;
 
         unsigned char primer_byte = memoriaPrincipal[pc];
         int opcode, tipoA, tipoB;
@@ -130,16 +132,7 @@ void configurarSegmentos(short int tablaSegmentos[8][2], int registros[32],
         tablaSegmentos[i][1] = -1;
     }
 }
-short int leerShortEndian(FILE *arch) {
-    unsigned char bytes[2];
-    fread(bytes, sizeof(unsigned char), 2, arch);
-    return (short int)((bytes[0] << 8) | bytes[1]);
-}
-int leerIntEndian(FILE *arch) {
-    unsigned char bytes[4];
-    fread(bytes, sizeof(unsigned char), 4, arch);
-    return (int)((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
-}
+
 void cargarVMI(char nombre[], short int tablaSegmentos[8][2], int registros[32], char memoriaPrincipal[], int tam_ram_bytes) {
     FILE *arch = fopen(nombre, "rb");
     if (arch == NULL) {
@@ -148,12 +141,10 @@ void cargarVMI(char nombre[], short int tablaSegmentos[8][2], int registros[32],
     }
 
     char identificador[6];
-    char version;
-
-    // 1. Leer Identificador y Versión
-    fread(identificador, sizeof(char), 5, arch);
+    unsigned char version;
+    leerExacto(identificador, 5, arch);
     identificador[5] = '\0';
-    fread(&version, sizeof(char), 1, arch);
+    leerExacto(&version, 1, arch);
 
     if (strcmp(identificador, "VMI26") != 0 || version != 1) {
         printf("Error: Archivo de imagen VMI invalido o version no soportada.\n");
@@ -161,96 +152,105 @@ void cargarVMI(char nombre[], short int tablaSegmentos[8][2], int registros[32],
         exit(1);
     }
 
-    // 2. Leer tamaño de la memoria (en KiB)
-    short int tamMemoriaKiB = leerShortEndian(arch);
-    int tam_necesario_bytes = tamMemoriaKiB * 1024;
-
-    // Validar que la RAM asignada al ejecutar la máquina soporte la imagen guardada
-    if (tam_necesario_bytes > tam_ram_bytes) {
+    int tam_necesario_bytes = leerUShortEndian(arch) * 1024;
+    if (tam_necesario_bytes != tam_ram_bytes) {
         printf("ERROR: La imagen requiere %d bytes, pero la maquina inicio con %d bytes.\n", tam_necesario_bytes, tam_ram_bytes);
         fclose(arch);
         exit(1);
     }
 
-    // 3. Leer los 32 registros (4 bytes cada uno, 128 bytes en total)
-    for (int i = 0; i < 32; i++) {
+    for (int i = 0; i < 32; i++)
         registros[i] = leerIntEndian(arch);
-    }
 
-    // 4. Leer la Tabla de Segmentos (8 filas x 2 columnas de 2 bytes = 32 bytes total)
     for (int i = 0; i < 8; i++) {
         tablaSegmentos[i][0] = leerShortEndian(arch); // Base
-        tablaSegmentos[i][1] = leerShortEndian(arch); // Tamaño
+        tablaSegmentos[i][1] = leerShortEndian(arch); // Tamanio
     }
 
-    // 5. Volcar la memoria principal completa[cite: 25]
-    // Como es el estado exacto byte a byte, podemos hacer un único fread masivo
-    fread(memoriaPrincipal, sizeof(char), tam_necesario_bytes, arch);
-
+    leerExacto(memoriaPrincipal, tam_necesario_bytes, arch);
     fclose(arch);
 }
-void cargarVMX(char nombre[],short int tablaSegmentos[8][2], int registros[32], char memoriaPrincipal[], int tamRamBytes, char** argsProceso, int numParametros ) {
+
+void cargarVMX(char nombre[], short int tablaSegmentos[8][2], int registros[32], char memoriaPrincipal[], int tamRamBytes, char** argsProceso, int numParametros) {
     FILE *arch = fopen(nombre, "rb");
     if (arch == NULL) {
         printf("Error al abrir el archivo.\n");
         exit(1);
     }
-    char identificador[6];
-    char version;
 
-    fread(identificador, sizeof(char), 5, arch);
+    char identificador[6];
+    unsigned char version;
+    leerExacto(identificador, 5, arch);
     identificador[5] = '\0';
-    fread(&version, sizeof(char), 1, arch);
+    leerExacto(&version, 1, arch);
     if (strcmp(identificador, "VMX26") != 0) {
         printf("Error: Archivo ejecutable invalido.\n");
         fclose(arch);
         exit(1);
     }
-    int tamCS = leerShortEndian(arch);
-    int tamDS = leerShortEndian(arch);
-    int tamES = leerShortEndian(arch);
-    int tamSS = leerShortEndian(arch);
-    int tamKS = leerShortEndian(arch);
-    int offsetEP = leerShortEndian(arch);
-    int tamPS = calcularTamPS(nombre, numParametros, argsProceso);
 
-    int memoriaTotalRequerida = tamPS + tamKS + tamCS + tamDS + tamES + tamSS;
-    if (memoriaTotalRequerida > tamRamBytes) {
-        printf("ERROR: Memoria insuficiente. Requiere %d bytes, RAM: %d bytes.\n", memoriaTotalRequerida, tamRamBytes);
+    int tamPS = 0, tamKS = 0, tamCS = 0, tamDS = 0, tamES = 0, tamSS = 0, offsetEP = 0;
+
+    if (version == 1) {
+        // MV1: solo codigo y datos; datos ocupa el resto de la memoria
+        tamCS = leerUShortEndian(arch);
+        tamDS = tamRamBytes - tamCS;
+        if (tamDS > 0xFFFF) tamDS = 0xFFFF;
+        if (tamDS < 0) tamDS = 0;
+    } else if (version == 2) {
+        tamCS    = leerUShortEndian(arch);
+        tamDS    = leerUShortEndian(arch);
+        tamES    = leerUShortEndian(arch);
+        tamSS    = leerUShortEndian(arch);
+        tamKS    = leerUShortEndian(arch);
+        offsetEP = leerUShortEndian(arch);
+        tamPS    = calcularTamPS(nombre, numParametros, argsProceso);
+    } else {
+        printf("Error: version de ejecutable no soportada (%d).\n", version);
         fclose(arch);
         exit(1);
     }
+
+    int tams[6] = {tamPS, tamKS, tamCS, tamDS, tamES, tamSS};
+    int total = 0;
+    for (int i = 0; i < 6; i++) {
+        if (tams[i] > 0xFFFF || (tams[i] > 0 && total > 0xFFFF)) { // tamanio o base no entran en 16 bits
+            printf("ERROR: Memoria insuficiente. Segmento fuera del rango direccionable.\n");
+            fclose(arch);
+            exit(1);
+        }
+        total += tams[i];
+    }
+    if (total > tamRamBytes) {
+        printf("ERROR: Memoria insuficiente. Requiere %d bytes, RAM: %d bytes.\n", total, tamRamBytes);
+        fclose(arch);
+        exit(1);
+    }
+
     configurarSegmentos(tablaSegmentos, registros, tamPS, tamKS, tamCS, tamDS, tamES, tamSS);
 
-    // cargar segmentos a la memoria
+    // Param Segment
     int offsetArgv = 0;
     if (tamPS > 0) {
-        int psIdx = registros[PS] >> 16;
-        int basePs = tablaSegmentos[psIdx][0];
+        int psIdx = (registros[PS] >> 16) & 0xFFFF;
+        int basePs = (unsigned short)tablaSegmentos[psIdx][0];
         int offsetActual = 0;
-
-        // Arreglo temporal para guardar los offsets de cada string
         int argcTotal = numParametros + 1;
         int offsetsStrings[argcTotal];
 
-        // Copiar nombre de archivo (.vmx)
         strcpy(&memoriaPrincipal[basePs + offsetActual], nombre);
         offsetsStrings[0] = offsetActual;
         offsetActual += strlen(nombre) + 1;
 
-        // Copiar parametros extra
         for (int i = 0; i < numParametros; i++) {
             strcpy(&memoriaPrincipal[basePs + offsetActual], argsProceso[i]);
             offsetsStrings[i + 1] = offsetActual;
             offsetActual += strlen(argsProceso[i]) + 1;
         }
 
-        // Construir el arreglo de punteros lógicos (argv)
         offsetArgv = offsetActual;
         for (int i = 0; i < argcTotal; i++) {
             int puntero_logico = (psIdx << 16) | offsetsStrings[i];
-
-            // Guardar en Big Endian
             memoriaPrincipal[basePs + offsetActual + 0] = (puntero_logico >> 24) & 0xFF;
             memoriaPrincipal[basePs + offsetActual + 1] = (puntero_logico >> 16) & 0xFF;
             memoriaPrincipal[basePs + offsetActual + 2] = (puntero_logico >> 8) & 0xFF;
@@ -259,52 +259,63 @@ void cargarVMX(char nombre[],short int tablaSegmentos[8][2], int registros[32], 
         }
     }
 
+    // Code Segment y Const Segment (en el archivo van en ese orden)
     if (tamCS > 0) {
-        int indiceCS = registros[CS] >> 16;
-        int baseCS = tablaSegmentos[indiceCS][0];
-        fread(&memoriaPrincipal[baseCS], sizeof(char), tamCS, arch);
+        int baseCS = (unsigned short)tablaSegmentos[(registros[CS] >> 16) & 0xFFFF][0];
+        leerExacto(&memoriaPrincipal[baseCS], tamCS, arch);
     }
     if (tamKS > 0) {
-        int indiceKS = registros[KS] >> 16;
-        int baseKS = tablaSegmentos[indiceKS][0];
-        fread(&memoriaPrincipal[baseKS], sizeof(char), tamKS, arch);
+        int baseKS = (unsigned short)tablaSegmentos[(registros[KS] >> 16) & 0xFFFF][0];
+        leerExacto(&memoriaPrincipal[baseKS], tamKS, arch);
     }
 
     registros[IP] = (registros[CS] & 0xFFFF0000) | (offsetEP & 0xFFFF);
 
+    // Stack Segment
     if (tamSS > 0) {
-        int indiceSS = registros[SS] >> 16;
-        int baseSS = tablaSegmentos[indiceSS][0];
-
-        // SP empieza justo fuera del límite del stack (dirección lógica)
+        if (tamSS < 12) { // no entran RET, argc y argv
+            printf("ERROR: STACK OVERFLOW\n");
+            fclose(arch);
+            exit(1);
+        }
+        int indiceSS = (registros[SS] >> 16) & 0xFFFF;
+        int baseSS = (unsigned short)tablaSegmentos[indiceSS][0];
         int punteroSP = tamSS;
 
-        int argvLogico = (tamPS > 0) ? ((registros[PS] & 0xFFFF0000) | offsetArgv) : -1;
-
         int argcTotal = numParametros + 1;
-        // Función auxiliar local o bloque para hacer PUSH manual de 4 bytes a la memoria
-        // Hacemos PUSH de argv, argc y RET (-1) respetando el orden
+        int argvLogico = (tamPS > 0) ? (int)((registros[PS] & 0xFFFF0000u) | (unsigned int)offsetArgv) : -1;
         int datosIniciales[3] = {argvLogico, (tamPS > 0) ? argcTotal : 0, -1};
 
         for (int i = 0; i < 3; i++) {
-            punteroSP -= 4; // PUSH decrementa
+            punteroSP -= 4;
             int dir_fisica = baseSS + punteroSP;
             int valor = datosIniciales[i];
-
-            // Guardar en Big Endian
             memoriaPrincipal[dir_fisica + 0] = (valor >> 24) & 0xFF;
             memoriaPrincipal[dir_fisica + 1] = (valor >> 16) & 0xFF;
             memoriaPrincipal[dir_fisica + 2] = (valor >> 8) & 0xFF;
             memoriaPrincipal[dir_fisica + 3] = valor & 0xFF;
         }
-
-        // Guardamos el SP en el registro
         registros[SP] = (indiceSS << 16) | (punteroSP & 0xFFFF);
     } else {
         registros[SP] = -1;
     }
     fclose(arch);
+}
 
+static int terminaEn(const char *s, const char *ext) {
+    size_t n = strlen(s), e = strlen(ext);
+    return n > e && strcmp(s + n - e, ext) == 0;
+}
+
+// Devuelve el tamanio de RAM (KiB) guardado en el header del .vmi, o -1 si falla
+static int leerTamRamVMI(const char *ruta) {
+    FILE *f = fopen(ruta, "rb");
+    if (f == NULL) return -1;
+    unsigned char h[8];
+    size_t leidos = fread(h, 1, 8, f);
+    fclose(f);
+    if (leidos != 8 || memcmp(h, "VMI26", 5) != 0) return -1;
+    return (h[6] << 8) | h[7];
 }
 
 int main(int argc, char* argv[]) {
@@ -317,27 +328,41 @@ int main(int argc, char* argv[]) {
     int paramIndex = -1;
     int numParametros = 0;
 
-
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0) {
             flag_d = 1;
         } else if (strcmp(argv[i], "-p") == 0) {
             paramIndex = i + 1;
             numParametros = argc - paramIndex;
-            break;
-        } else if (strstr(argv[i], ".vmx") != NULL) {
+            break; // lo que sigue son parametros del programa, no de la VM
+        } else if (strncmp(argv[i], "m=", 2) == 0) {
+            tamRamKib = atoi(argv[i] + 2);
+            if (tamRamKib <= 0 || tamRamKib > 65535) {   // la tabla guarda direcciones de 16 bits
+                printf("Error: el tamanio de la memoria debe estar entre 1 y 64 KiB.\n");
+                return 1;
+            }
+        } else if (terminaEn(argv[i], ".vmx")) {
             archivoVMX = argv[i];
-        } else if (strstr(argv[i], ".vmi") != NULL) {
+        } else if (terminaEn(argv[i], ".vmi")) {
             archivoVMI = argv[i];
         }
     }
 
     if (archivoVMX == NULL && archivoVMI == NULL) {
         printf("Error: Se requiere al menos un archivo .vmx o .vmi para ejecutar.\n");
-        printf("Formato: vmx [filename.vmx] [filename.vmi] [-m=M] [-d] [-p param1 ... paramN]\n");
+        printf("Formato: vmx [filename.vmx] [filename.vmi] [m=M] [-d] [-p param1 ... paramN]\n");
         return 1;
     }
 
+    // Solo .vmi: el tamanio de RAM lo define la imagen, no m=
+    if (archivoVMX == NULL) {
+        int kib = leerTamRamVMI(archivoVMI);
+        if (kib <= 0) {
+            printf("Error: no se pudo leer un archivo de imagen valido: %s\n", archivoVMI);
+            return 1;
+        }
+        tamRamKib = kib;
+    }
 
     int tamRamBytes = tamRamKib * 1024;
     char *memoriaPrincipal = (char*)calloc(tamRamBytes, sizeof(char));
@@ -349,27 +374,22 @@ int main(int argc, char* argv[]) {
     short int tablaSegmentos[8][2];
     int registros[32] = {0};
 
-
     if (archivoVMX != NULL) {
         char** argsProceso = (numParametros > 0) ? &argv[paramIndex] : NULL;
         cargarVMX(archivoVMX, tablaSegmentos, registros, memoriaPrincipal, tamRamBytes, argsProceso, numParametros);
-    } else if (archivoVMI != NULL) {
+    } else {
         cargarVMI(archivoVMI, tablaSegmentos, registros, memoriaPrincipal, tamRamBytes);
     }
-
 
     if (flag_d) {
         int offsetEP = registros[IP] & 0xFFFF; // Recuperamos el Entry Point
         volcadoDisassembler(memoriaPrincipal, tablaSegmentos, registros, offsetEP);
     }
 
-    extern char *vmi_actual;
-    extern int ram_actual;
     vmi_actual = archivoVMI;
     ram_actual = tamRamBytes;
     ejecutarProceso(memoriaPrincipal, registros, tablaSegmentos);
 
     free(memoriaPrincipal);
-
     return 0;
 }
