@@ -729,7 +729,6 @@ void inst_ldh (int reg[], char mem[], short int seg[][2]) {
     set_valor(reg[OP1], resultado, reg, mem,seg);
 }
 void inst_rnd (int reg[], char mem[], short int seg[][2]) {
-    int op_a = get_valor(reg[OP1],reg,mem,seg);
     int op_b = get_valor(reg[OP2],reg,mem,seg);
 
     //genera numero aleatorio entre 0 y op_b, y lo guarda en A

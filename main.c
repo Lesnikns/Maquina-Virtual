@@ -19,7 +19,7 @@ int condicionProceso(int ip, short int tablaSegmentos[8][2], int registros[32]) 
     return 1;
 }
 void ejecutarProceso(char memoriaPrincipal[], int registros[32], short int tablaSegmentos[8][2]) {
-    while (condicionProceso(registros[IP], tablaSegmentos)) {
+    while (condicionProceso(registros[IP], tablaSegmentos, registros)) {
 
         int segmento_ip = (registros[IP] >> 16) & 0xFFFF;
         int offset_ip = registros[IP] & 0xFFFF;
@@ -189,7 +189,7 @@ void cargarVMI(char nombre[], short int tablaSegmentos[8][2], int registros[32],
 
     fclose(arch);
 }
-void cargarVMX(char nombre[],short int tablaSegmentos[8][2], int registros[32], char memoriaPrincipal[], short int tamRamBytes, char** argsProceso, int numParametros ) {
+void cargarVMX(char nombre[],short int tablaSegmentos[8][2], int registros[32], char memoriaPrincipal[], int tamRamBytes, char** argsProceso, int numParametros ) {
     FILE *arch = fopen(nombre, "rb");
     if (arch == NULL) {
         printf("Error al abrir el archivo.\n");
@@ -281,9 +281,10 @@ void cargarVMX(char nombre[],short int tablaSegmentos[8][2], int registros[32], 
 
         int argvLogico = (tamPS > 0) ? ((registros[PS] & 0xFFFF0000) | offsetArgv) : -1;
 
+        int argcTotal = numParametros + 1;
         // Función auxiliar local o bloque para hacer PUSH manual de 4 bytes a la memoria
         // Hacemos PUSH de argv, argc y RET (-1) respetando el orden
-        int datosIniciales[3] = {argvLogico, numParametros, -1};
+        int datosIniciales[3] = {argvLogico, (tamPS > 0) ? argcTotal : 0, -1};
 
         for (int i = 0; i < 3; i++) {
             punteroSP -= 4; // PUSH decrementa
@@ -320,8 +321,6 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0) {
             flag_d = 1;
-        } else if (strncmp(argv[i], "-m=", 3) == 0) {
-            tamRamKib = atoi(argv[i] + 3);
         } else if (strcmp(argv[i], "-p") == 0) {
             paramIndex = i + 1;
             numParametros = argc - paramIndex;

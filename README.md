@@ -27,14 +27,19 @@ Trabajo práctico para fundamentos de arquitectura de computadoras.
 ```
 **Para compilar usando GCC desde la terminal:**
 ```bash
-gcc main.c instrucciones.c disassembler.c utilidades.c -o MaquinaVirtual
-
-./vm [archivo_binario.vmx]
+gcc -Wall main.c instrucciones.c utilidades.c disassembler.c -o maquinavirtual.exe
+```
+**Para ejecutar**
+```bash
+.\maquinavirtual.exe [filename.vmx] [filename.vmi] [m=M] [-d] [-p param1 param2 ... paramN]
 ```
 **Para disassembler:**
 ```bash
-./vm [archivo_binario.vmx] -d 
+.\maquinavirtual.exe main.vmx -d
 
 ```
+**Para ejecutar la imagen:**
+```bash
+.\vmg.exe imagen.vmi -r -s
 
-
+```
