@@ -16,11 +16,11 @@ int saltoValido(int destino, int reg[], short int seg[][2]) {
 void inst_sys (int reg[], char mem[], short int seg[][2]) {
     int op_a;
     int c;
-
+ 
     op_a = get_valor(reg[OP1],reg,mem,seg);
-
+ 
     switch (op_a) {
-
+ 
     case 0x0: // CLEAR SCREEN: no usa ni modifica registros
         fflush(stdout);
 #ifdef _WIN32   // elige entre usar la sintaxis del clear de windows o linux en base a los requerimentos del sistema
@@ -29,14 +29,14 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         system("clear");
 #endif
         break;
-
+ 
     case 0x1: // READ
     case 0x2: { // WRITE
         int cantByte = (reg[ECX] >> 16) & 0xFFFF; //cantidad de bytes a leer/escribir
         int cantValores = reg[ECX] & 0xFFFF; //cantidad de valores a leer/escribir
         int segmento    = (reg[EDX] >> 16) & 0xFFFF;
         int offset_base = reg[EDX] & 0xFFFF;
-
+ 
         // Validacion de Segmento (Solo si hay valores para operar)
         if (cantValores > 0 && cantByte > 0) {
             if (segmento < 0 || segmento > 7 || seg[segmento][0] == -1 ||
@@ -44,42 +44,47 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                 printf("Fallo de segmento\n");
                 exit(1);
             }
-
+ 
             int edx = (unsigned short)seg[segmento][0] + offset_base; // direccion fisica base
-
+ 
             if(op_a == 1){ // Para lectura
                 for(int i = 0; i < cantValores; i++){
                     int valor_a_guardar = 0;
                     int offset_actual = offset_base + (i * cantByte);
                     int dir_fisica_actual = edx + (i * cantByte);
-
+ 
                     // 1. Mostrar el prompt
                     printf("[%04X]: ", dir_fisica_actual);
-
+ 
                     // 2. Ingreso del dato
-                    if((reg[EAX] & 0xF0) == 0x10){
-                        char* cad_binaria = (char *)malloc(sizeof(char)*cantByte*8+1);
-                        scanf("%s", cad_binaria);
-                        for(int j=0; j<cantByte*8; j++){
-                            valor_a_guardar = valor_a_guardar << 1;
-                            if(cad_binaria[j] == '1')
-                                valor_a_guardar += 1;
-                        }
-                        free(cad_binaria);
-                    } else {
-                        switch(reg[EAX] & 0xF){
-                            case 0x1: scanf("%d", &valor_a_guardar); break;
-                            case 0x2: { char ch; scanf(" %c", &ch); valor_a_guardar = (int)ch; } break;
-                            case 0x4: scanf("%o", &valor_a_guardar); break;
-                            case 0x8: scanf("%X", &valor_a_guardar); break;
+                    int modo = reg[EAX];
+                    if ((modo & 0x1C) == 0 && (modo & 0x02)) {   // caracter
+                        char ch;
+                        scanf(" %c", &ch);
+                        valor_a_guardar = (int)ch;
+                    } else {                                      // numero: se lee como texto y se convierte
+                        char texto[100];
+                        char *p = texto;
+                        if (scanf("%99s", texto) != 1)
+                            texto[0] = '\0';
+                        if (modo & 0x10) {                        // binario (con o sin 0b)
+                            if (p[0] == '0' && (p[1] == 'b' || p[1] == 'B')) p += 2;
+                            valor_a_guardar = (int)strtoul(p, NULL, 2);
+                        } else if (modo & 0x08) {                 // hexadecimal (con o sin 0x)
+                            valor_a_guardar = (int)strtoul(p, NULL, 16);
+                        } else if (modo & 0x04) {                 // octal (con o sin 0o)
+                            if (p[0] == '0' && (p[1] == 'o' || p[1] == 'O')) p += 2;
+                            valor_a_guardar = (int)strtoul(p, NULL, 8);
+                        } else {                                  // decimal
+                            valor_a_guardar = (int)strtol(p, NULL, 10);
                         }
                     }
-
+ 
                     // 3. Actualizar LAR, MAR y MBR
                     reg[LAR] = (segmento << 16) | (offset_actual & 0xFFFF);
                     reg[MAR] = (cantByte << 16) | (dir_fisica_actual & 0xFFFF);
                     reg[MBR] = valor_a_guardar;
-
+ 
                     // 4. Guardar en memoria
                     for(int j=0; j<cantByte; j++)
                         mem[dir_fisica_actual+j] = (valor_a_guardar >> (8*(cantByte-1-j))) & 0xFF;
@@ -92,52 +97,54 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
                 for(int i = 0; i < cantValores; i++){
                     int offset_actual = offset_base + (i * cantByte);
                     int dir_fisica_actual = edx + (i * cantByte);
-
+ 
                     int valor_a_escribir = mem[dir_fisica_actual] & 0xFF;
                     for(int j = 1; j < cantByte; j++){
                         valor_a_escribir = valor_a_escribir << 8;
                         valor_a_escribir += mem[dir_fisica_actual+j] & 0xFF;
                     }
-
+ 
+                    // bits de la celda (para binario, hexa y octal) y valor con signo (para decimal)
+                    unsigned int mascara = (cantByte >= 4) ? 0xFFFFFFFFu : ((1u << (8 * cantByte)) - 1u);
+                    unsigned int crudo = (unsigned int)valor_a_escribir & mascara;
+                    int con_signo = (int)crudo;
+                    if (cantByte < 4 && ((crudo >> (8 * cantByte - 1)) & 1u))
+                        con_signo = (int)(crudo | ~mascara);   // propaga el signo, como toda lectura de memoria
+ 
                     // 1. Actualizar LAR, MAR y MBR
                     reg[LAR] = (segmento << 16) | (offset_actual & 0xFFFF);
                     reg[MAR] = (cantByte << 16) | (dir_fisica_actual & 0xFFFF);
-                    reg[MBR] = valor_a_escribir;
-
-                    // 2. Mostrar el prompt
-                    printf("[%04X]: ", dir_fisica_actual);
+                    reg[MBR] = con_signo;
+ 
+                    // 2. Prompt y valor en cada modo pedido, en el orden del enunciado (ASM MV1):
+                    //    binario, hexadecimal, octal, caracteres y decimal, separados por un espacio
                     int formato = reg[EAX];
-                    int hexa = formato & 0x08;
-                    int decimal = formato & 0x01;
-                    int octal = formato & 0x04;
-                    int binario = formato & 0x10;
-                    int caracter = formato & 0x02;
-
-                    if(binario == 0x10){
-                        char *s = (char *)malloc(sizeof(valor_a_escribir)*8+1);
-                        devuelveNotacionBinaria(valor_a_escribir, s);
-                        printf("0b%s\n", s);
-                        free(s);
+                    printf("[%04X]:", dir_fisica_actual);
+                    if (formato & 0x10) {                       // 0b1001000 (sin ceros a la izquierda)
+                        char s[33];
+                        devuelveNotacionBinaria((int)crudo, s);
+                        printf(" 0b%s", s);
                     }
-                    if (hexa == 0x08) {
-                        printf("0x%X ", valor_a_escribir);
+                    if (formato & 0x08)                         // 0x4161
+                        printf(" 0x%X", crudo);
+                    if (formato & 0x04)                         // 0o40541
+                        printf(" 0o%o", crudo);
+                    if (formato & 0x02) {                       // un caracter por byte; no imprimible: '.'
+                        printf(" ");
+                        for (int j = 0; j < cantByte; j++) {
+                            unsigned char car = (unsigned char)mem[dir_fisica_actual + j];
+                            printf("%c", (car >= 32 && car <= 126) ? car : '.');
+                        }
                     }
-                    if (octal == 0x04) {
-                        printf("%o ", valor_a_escribir);
-                    }
-                    if (caracter == 0x02) {
-                        printf("%c ", valor_a_escribir);
-                    }
-                    if (decimal == 0x01) {
-                        printf("%d ", valor_a_escribir);
-                    }
+                    if (formato & 0x01)                         // 16737
+                        printf(" %d", con_signo);
                     printf("\n");
                 }
             }
         }
         break;
     }
-
+ 
     case 0x3: { // STRING READ: lee una linea y la guarda desde [EDX] terminada en '\0'
         int segmento = (reg[EDX] >> 16) & 0xFFFF;
         int offset   = reg[EDX] & 0xFFFF;
@@ -149,7 +156,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         int disponible = (unsigned short)seg[segmento][1] - offset; // bytes hasta el fin del segmento
         int maximo     = reg[ECX];                  // -1: sin limite
         int i = 0;
-
+ 
         while ((c = getchar()) != '\n' && c != EOF) {
             if (c == '\r')
                 continue;                           // por si la entrada viene de Windows
@@ -168,7 +175,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         reg[MBR] = 0;
         break;
     }
-
+ 
     case 0x4: { // STRING WRITE: imprime desde [EDX] hasta el '\0'
         int segmento = (reg[EDX] >> 16) & 0xFFFF;
         int offset   = reg[EDX] & 0xFFFF;
@@ -179,7 +186,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         int base   = (unsigned short)seg[segmento][0];
         int limite = (unsigned short)seg[segmento][1];
         int fin    = offset;
-
+ 
         while (fin < limite && mem[base + fin] != '\0')
             fin++;
         if (fin >= limite) { // string no termina dentro del segmento
@@ -193,12 +200,12 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         reg[MBR] = 0;
         break;
     }
-
+ 
     case 0xF: { // BREAKPOINT
         if (vmi_actual == NULL) // si no hay vmi se ignora
             break;
         bp_anidado = 1;
-
+ 
         while (1) {
             // 1. Imagen: header + 32 registros + tabla de segmentos + memoria (big endian)
             FILE *arch = fopen(vmi_actual, "wb");
@@ -209,7 +216,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             unsigned char header[8] = { 'V', 'M', 'I', '2', '6', 1,
                                         ((ram_actual / 1024) >> 8) & 0xFF, (ram_actual / 1024) & 0xFF };
             fwrite(header, 1, 8, arch);
-
+ 
             for (int i = 0; i < 32; i++) {
                 unsigned char b[4] = { (reg[i] >> 24) & 0xFF, (reg[i] >> 16) & 0xFF,
                                        (reg[i] >> 8) & 0xFF,  reg[i] & 0xFF };
@@ -222,20 +229,20 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             }
             fwrite(mem, 1, ram_actual, arch);
             fclose(arch);
-
+ 
             // 2. Espera la accion del usuario: g, q o Enter
             char linea[32];
             int accion = 0;                         // 'g' o '\n'
             while (accion == 0) {
                 printf("[breakpoint] g: continuar | q: salir | Enter: paso a paso > ");
                 fflush(stdout);
-
+ 
                 if (fgets(linea, sizeof(linea), stdin) == NULL)  // sin entrada: continua
                     accion = 'g';
                 else {
                     if (strchr(linea, '\n') == NULL)             // linea mas larga que el buffer
                         while ((c = getchar()) != '\n' && c != EOF);
-
+ 
                     if (linea[0] == '\n' || linea[0] == '\r')
                         accion = '\n';
                     else if (linea[0] == 'g' || linea[0] == 'G')
@@ -247,14 +254,14 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             }
             if (accion == 'g')
                 break;                              // ejecutarProceso sigue normalmente
-
+ 
             // 3. Enter: se ejecuta una instruccion y se vuelve a pausar.
             // Si programa ya termino, no hay mas a ejecutar.
             int seg_ip = (reg[IP] >> 16) & 0xFFFF;
             int off_ip = reg[IP] & 0xFFFF;
             if (reg[IP] == -1 || seg_ip > 7 || seg[seg_ip][0] == -1 || off_ip >= (unsigned short)seg[seg_ip][1])
                 break;
-
+ 
             // lectura y decodificacion: lo mismo que hace ejecutarProceso
             int pc = (unsigned short)seg[seg_ip][0] + off_ip;
             unsigned char primer_byte = mem[pc];
@@ -270,7 +277,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             }
             reg[OPC] = opcode;
             reg[IP] += (1 + tipoA + tipoB);
-
+ 
             int valorA = 0, valorB = 0;
             int pos = pc + 1;
             if (tipoB == 1) { valorB = mem[pos] & 0xFF; pos += 1; }
@@ -279,17 +286,17 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             if (tipoA == 1) { valorA = mem[pos] & 0xFF; }
             else if (tipoA == 2) { valorA = (short)(((mem[pos] & 0xFF) << 8) | (mem[pos+1] & 0xFF)); }
             else if (tipoA == 3) { valorA = ((mem[pos] & 0xFF) << 16) | ((mem[pos+1] & 0xFF) << 8) | (mem[pos+2] & 0xFF); }
-
+ 
             reg[OP1] = (tipoA == 0) ? 0 : ((tipoA << 24) | (valorA & 0x00FFFFFF));
             reg[OP2] = (tipoB == 0) ? 0 : ((tipoB << 24) | (valorB & 0x00FFFFFF));
-
+ 
             bp_anidado = 0;
             operaciones[opcode](reg, mem, seg);
-
+ 
             // si instruccion fue otro SYS F, breakpoint ya hizo su pausa
             if (bp_anidado)
                 break;
-
+ 
             // si con esa instruccion termina programa, no se pausa de nuevo
             seg_ip = (reg[IP] >> 16) & 0xFFFF;
             off_ip = reg[IP] & 0xFFFF;
@@ -299,7 +306,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         bp_anidado = 1;
         break;
     }
-
+ 
     default:
         printf("ERROR: llamada al sistema invalida (SYS %X).\n", op_a);
         exit(1);
