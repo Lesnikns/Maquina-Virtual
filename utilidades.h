@@ -4,6 +4,8 @@ void leerExacto(void *dst, size_t n, FILE *arch);
 unsigned short leerUShortEndian(FILE *arch);
 short int leerShortEndian(FILE *arch);
 int leerIntEndian(FILE *arch);
+int terminaEn(const char *s, const char *ext);
+int leerTamRamVMI(const char *ruta);
 typedef void (*InstruccionFunc)(int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]);
 extern InstruccionFunc operaciones[32];
 extern const char* mnemonicos[32];

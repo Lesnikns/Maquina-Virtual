@@ -40,12 +40,12 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         // Validacion de Segmento (Solo si hay valores para operar)
         if (cantValores > 0 && cantByte > 0) {
             if (segmento < 0 || segmento > 7 || seg[segmento][0] == -1 ||
-                (offset_base + (cantValores * cantByte)) > seg[segmento][1]) {
+                (offset_base + (cantValores * cantByte)) > (unsigned short)seg[segmento][1]) {
                 printf("Fallo de segmento\n");
                 exit(1);
             }
 
-            int edx = seg[segmento][0] + offset_base; // direccion fisica base
+            int edx = (unsigned short)seg[segmento][0] + offset_base; // direccion fisica base
 
             if(op_a == 1){ // Para lectura
                 for(int i = 0; i < cantValores; i++){
@@ -163,6 +163,9 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             i++;
         }
         mem[base + offset + i] = '\0';
+        reg[LAR] = (segmento << 16) | ((offset + i) & 0xFFFF);
+        reg[MAR] = (1 << 16) | ((base + offset + i) & 0xFFFF);
+        reg[MBR] = 0;
         break;
     }
 
@@ -185,6 +188,9 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         }
         fwrite(&mem[base + offset], 1, fin - offset, stdout);
         fflush(stdout);
+        reg[LAR] = (segmento << 16) | (fin & 0xFFFF);
+        reg[MAR] = (1 << 16) | ((base + fin) & 0xFFFF);
+        reg[MBR] = 0;
         break;
     }
 
@@ -287,7 +293,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             // si con esa instruccion termina programa, no se pausa de nuevo
             seg_ip = (reg[IP] >> 16) & 0xFFFF;
             off_ip = reg[IP] & 0xFFFF;
-            if (reg[IP] == -1 || seg_ip > 7 || seg[seg_ip][0] == -1 || off_ip >= seg[seg_ip][1])
+            if (reg[IP] == -1 || seg_ip > 7 || seg[seg_ip][0] == -1 || off_ip >= (unsigned short)seg[seg_ip][1])
                 break;
         }
         bp_anidado = 1;
@@ -822,7 +828,7 @@ void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], c
         int offset_final = offset_base + offset;
 
         // Validación dinámica de límites según la cantidad de bytes a escribir
-        if (offset_final < 0 || (offset_final + cant_bytes - 1) >= tablaSegmentos[segmento][1]) {
+        if (offset_final < 0 || (offset_final + cant_bytes - 1) >= (unsigned short)tablaSegmentos[segmento][1]) {
             printf("ERROR: Segmentation Fault. Acceso fuera de los limites del segmento.\n");
             exit(1);
         }

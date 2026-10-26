@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "instrucciones.h"
 
@@ -26,6 +27,22 @@ int leerIntEndian(FILE *arch) {
     leerExacto(b, 4, arch);
     return (int)(((unsigned int)b[0] << 24) | ((unsigned int)b[1] << 16) |
                  ((unsigned int)b[2] << 8)  |  (unsigned int)b[3]);
+}
+
+int terminaEn(const char *s, const char *ext) {
+    size_t n = strlen(s), e = strlen(ext);
+    return n > e && strcmp(s + n - e, ext) == 0;
+}
+
+// Devuelve el tamanio de RAM (KiB) guardado en el header del .vmi, o -1 si falla
+int leerTamRamVMI(const char *ruta) {
+    FILE *f = fopen(ruta, "rb");
+    if (f == NULL) return -1;
+    unsigned char h[8];
+    size_t leidos = fread(h, 1, 8, f);
+    fclose(f);
+    if (leidos != 8 || memcmp(h, "VMI26", 5) != 0) return -1;
+    return (h[6] << 8) | h[7];
 }
 InstruccionFunc operaciones[32] = {
     inst_sys, inst_jmp, inst_jp,  inst_jn,  inst_jz,  inst_jc,  inst_jv,  inst_jnp,

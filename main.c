@@ -302,21 +302,7 @@ void cargarVMX(char nombre[], short int tablaSegmentos[8][2], int registros[32],
     fclose(arch);
 }
 
-static int terminaEn(const char *s, const char *ext) {
-    size_t n = strlen(s), e = strlen(ext);
-    return n > e && strcmp(s + n - e, ext) == 0;
-}
 
-// Devuelve el tamanio de RAM (KiB) guardado en el header del .vmi, o -1 si falla
-static int leerTamRamVMI(const char *ruta) {
-    FILE *f = fopen(ruta, "rb");
-    if (f == NULL) return -1;
-    unsigned char h[8];
-    size_t leidos = fread(h, 1, 8, f);
-    fclose(f);
-    if (leidos != 8 || memcmp(h, "VMI26", 5) != 0) return -1;
-    return (h[6] << 8) | h[7];
-}
 
 int main(int argc, char* argv[]) {
     srand(time(NULL));
