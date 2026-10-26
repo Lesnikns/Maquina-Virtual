@@ -51,7 +51,7 @@ void imprimirOperando(int tipo, int valor_crudo, const char* nom_regs[]) {
 void imprimirDisassembler(int pc, int opcode, int tipoA, int tipoB, int valorA, int valorB, char memoriaPrincipal[], int es_entry_point) {
     // Indicador de entry point
     if (es_entry_point)
-        printf("> ");
+        printf(" >");
     else
         printf("  ");
 
