@@ -467,7 +467,13 @@ void inst_push(int reg[], char mem[], short int seg[][2]) {
     mem[dirFisica + 2] = (opA >> 8)  & 0xff;
     mem[dirFisica + 3] = opA & 0xff;
 
+    reg[LAR] = offsetSp;    // Dirección lógica donde apilamos
+    reg[MAR] = dirFisica;   // Dirección física real en memoria
+    reg[MBR] = opA;
+
     reg[SP] = (reg[SS] & 0xFFFF0000) | (offsetSp & 0xFFFF); // actualizo sp con el nuevo offset por haber hecho push en la pila
+
+
 
 
 }
@@ -487,12 +493,16 @@ void inst_pop(int reg[], char mem[], short int seg[][2]) {
     }
     int dirFisica = (unsigned short)seg[idiceSS][0] + offsetSP;
 
-    int extraido = ((mem[dirFisica] & 0xFF) << 24) |
+    int valExtraido = ((mem[dirFisica] & 0xFF) << 24) |
                    ((mem[dirFisica + 1] & 0xFF) << 16) |
                    ((mem[dirFisica + 2] & 0xFF) << 8) |
                    (mem[dirFisica + 3] & 0xFF);
 
-    set_valor(reg[OP1], extraido, reg, mem, seg);
+    reg[LAR] = offsetSP;        // Dirección lógica de donde desapilamos
+    reg[MAR] = dirFisica;       // Dirección física real en memoria
+    reg[MBR] = valExtraido;
+
+    set_valor(reg[OP1], valExtraido, reg, mem, seg);
     reg[SP] = (reg[SS] & 0xFFFF0000) | ((offsetSP + 4) & 0xFFFF);
 }
 void inst_call(int reg[], char mem[], short int seg[][2]) {
@@ -515,6 +525,11 @@ void inst_call(int reg[], char mem[], short int seg[][2]) {
     mem[dirFisica + 1] = (valIP >> 16) & 0xFF;
     mem[dirFisica + 2] = (valIP >> 8)  & 0xFF;
     mem[dirFisica + 3] = valIP & 0xFF;
+
+
+    reg[LAR] = offsetSP;
+    reg[MAR] = dirFisica;
+    reg[MBR] = valIP;
 
     reg[SP] = (reg[SS] & 0xFFFF0000) | (offsetSP & 0xFFFF);
 
@@ -542,17 +557,19 @@ void inst_ret(int reg[], char mem[], short int seg[][2]) {
 
     int dirFisica = (unsigned short)seg[idiceSS][0] + offsetSP;
 
-    // Extraemos la dirección de retorno q esta en la pila
+    // Extraigo la dirección de retorno q esta en la pila
     int valIP = ((mem[dirFisica] & 0xFF) << 24) |
                 ((mem[dirFisica + 1] & 0xFF) << 16) |
                 ((mem[dirFisica + 2] & 0xFF) << 8) |
                 (mem[dirFisica + 3] & 0xFF);
 
-    // Retauramos el ip para volver
-    reg[IP] = valIP;
+    reg[LAR] = offsetSP;
+    reg[MAR] = dirFisica;
+    reg[MBR] = valIP;
 
-    // Actualizamos el SP
-    reg[SP] = (reg[SS] & 0xFFFF0000) | ((offsetSP + 4) & 0xFFFF);
+    reg[IP] = valIP;  // Retauro el ip para volver
+
+    reg[SP] = (reg[SS] & 0xFFFF0000) | ((offsetSP + 4) & 0xFFFF); // Actualizo el SP
 }
 void inst_stop(int reg[], char mem[], short int seg[][2]) {
     reg[IP] = -1; //carga en ip, -1 para indicar que termino la ejecucion del programa
