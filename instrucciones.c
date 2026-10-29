@@ -16,127 +16,120 @@ int saltoValido(int destino, int reg[], short int seg[][2]) {
 void inst_sys (int reg[], char mem[], short int seg[][2]) {
     int op_a;
     int c;
- 
+
     op_a = get_valor(reg[OP1],reg,mem,seg);
- 
+
     switch (op_a) {
- 
-    case 0x0: // CLEAR SCREEN: no usa ni modifica registros
+
+    case 0x0:
         fflush(stdout);
-#ifdef _WIN32   // elige entre usar la sintaxis del clear de windows o linux en base a los requerimentos del sistema
+#ifdef _WIN32
         system("cls");
 #else
         system("clear");
 #endif
         break;
- 
-    case 0x1: // READ
-    case 0x2: { // WRITE
-        int cantByte = (reg[ECX] >> 16) & 0xFFFF; //cantidad de bytes a leer/escribir
-        int cantValores = reg[ECX] & 0xFFFF; //cantidad de valores a leer/escribir
+
+    case 0x1:
+    case 0x2: {
+        int cantByte = (reg[ECX] >> 16) & 0xFFFF;
+        int cantValores = reg[ECX] & 0xFFFF;
         int segmento    = (reg[EDX] >> 16) & 0xFFFF;
         int offset_base = reg[EDX] & 0xFFFF;
- 
-        // Validacion de Segmento (Solo si hay valores para operar)
+
         if (cantValores > 0 && cantByte > 0) {
+            if (cantByte > 4) {
+                printf("ERROR: Tamano de celda mayor a 4 bytes no soportado.\n");
+                exit(1);
+            }
             if (segmento < 0 || segmento > 7 || seg[segmento][0] == -1 ||
                 (offset_base + (cantValores * cantByte)) > (unsigned short)seg[segmento][1]) {
                 printf("Fallo de segmento\n");
                 exit(1);
             }
- 
-            int edx = (unsigned short)seg[segmento][0] + offset_base; // direccion fisica base
- 
-            if(op_a == 1){ // Para lectura
+
+            int edx = (unsigned short)seg[segmento][0] + offset_base;
+
+            if(op_a == 1){
                 for(int i = 0; i < cantValores; i++){
                     int valor_a_guardar = 0;
                     int offset_actual = offset_base + (i * cantByte);
                     int dir_fisica_actual = edx + (i * cantByte);
- 
-                    // 1. Mostrar el prompt
+
                     printf("[%04X]: ", dir_fisica_actual);
- 
-                    // 2. Ingreso del dato
+
                     int modo = reg[EAX];
-                    if ((modo & 0x1C) == 0 && (modo & 0x02)) {   // caracter
-                        char ch;
-                        scanf(" %c", &ch);
-                        valor_a_guardar = (int)ch;
-                    } else {                                      // numero: se lee como texto y se convierte
+                    if ((modo & 0x1C) == 0 && (modo & 0x02)) {
+                        int ch;
+                        do { ch = getchar(); } while (ch == '\n' || ch == '\r');
+                        valor_a_guardar = (ch != EOF) ? ch : 0;
+                    } else {
                         char texto[100];
                         char *p = texto;
                         if (scanf("%99s", texto) != 1)
                             texto[0] = '\0';
-                        if (modo & 0x10) {                        // binario (con o sin 0b)
+                        if (modo & 0x10) {
                             if (p[0] == '0' && (p[1] == 'b' || p[1] == 'B')) p += 2;
                             valor_a_guardar = (int)strtoul(p, NULL, 2);
-                        } else if (modo & 0x08) {                 // hexadecimal (con o sin 0x)
+                        } else if (modo & 0x08) {
                             valor_a_guardar = (int)strtoul(p, NULL, 16);
-                        } else if (modo & 0x04) {                 // octal (con o sin 0o)
+                        } else if (modo & 0x04) {
                             if (p[0] == '0' && (p[1] == 'o' || p[1] == 'O')) p += 2;
                             valor_a_guardar = (int)strtoul(p, NULL, 8);
-                        } else {                                  // decimal
+                        } else {
                             valor_a_guardar = (int)strtol(p, NULL, 10);
                         }
                     }
- 
-                    // 3. Actualizar LAR, MAR y MBR
+
                     reg[LAR] = (segmento << 16) | (offset_actual & 0xFFFF);
                     reg[MAR] = (cantByte << 16) | (dir_fisica_actual & 0xFFFF);
                     reg[MBR] = valor_a_guardar;
- 
-                    // 4. Guardar en memoria
+
                     for(int j=0; j<cantByte; j++)
                         mem[dir_fisica_actual+j] = (valor_a_guardar >> (8*(cantByte-1-j))) & 0xFF;
                 }
-                // scanf deja el '\n' en el teclado: si no se descarta, el proximo
-                // breakpoint lo toma como un Enter y entra en modo paso a paso
                 while ((c = getchar()) != '\n' && c != EOF);
             }
-            else { // Para escritura
+            else {
                 for(int i = 0; i < cantValores; i++){
                     int offset_actual = offset_base + (i * cantByte);
                     int dir_fisica_actual = edx + (i * cantByte);
- 
+
                     int valor_a_escribir = mem[dir_fisica_actual] & 0xFF;
                     for(int j = 1; j < cantByte; j++){
                         valor_a_escribir = valor_a_escribir << 8;
                         valor_a_escribir += mem[dir_fisica_actual+j] & 0xFF;
                     }
- 
-                    // bits de la celda (para binario, hexa y octal) y valor con signo (para decimal)
+
                     unsigned int mascara = (cantByte >= 4) ? 0xFFFFFFFFu : ((1u << (8 * cantByte)) - 1u);
                     unsigned int crudo = (unsigned int)valor_a_escribir & mascara;
                     int con_signo = (int)crudo;
                     if (cantByte < 4 && ((crudo >> (8 * cantByte - 1)) & 1u))
-                        con_signo = (int)(crudo | ~mascara);   // propaga el signo, como toda lectura de memoria
- 
-                    // 1. Actualizar LAR, MAR y MBR
+                        con_signo = (int)(crudo | ~mascara);
+
                     reg[LAR] = (segmento << 16) | (offset_actual & 0xFFFF);
                     reg[MAR] = (cantByte << 16) | (dir_fisica_actual & 0xFFFF);
                     reg[MBR] = con_signo;
- 
-                    // 2. Prompt y valor en cada modo pedido, en el orden del enunciado (ASM MV1):
-                    //    binario, hexadecimal, octal, caracteres y decimal, separados por un espacio
+
                     int formato = reg[EAX];
                     printf("[%04X]:", dir_fisica_actual);
-                    if (formato & 0x10) {                       // 0b1001000 (sin ceros a la izquierda)
+                    if (formato & 0x10) {
                         char s[33];
                         devuelveNotacionBinaria((int)crudo, s);
                         printf(" 0b%s", s);
                     }
-                    if (formato & 0x08)                         // 0x4161
+                    if (formato & 0x08)
                         printf(" 0x%X", crudo);
-                    if (formato & 0x04)                         // 0o40541
+                    if (formato & 0x04)
                         printf(" 0o%o", crudo);
-                    if (formato & 0x02) {                       // un caracter por byte; no imprimible: '.'
+                    if (formato & 0x02) {
                         printf(" ");
                         for (int j = 0; j < cantByte; j++) {
                             unsigned char car = (unsigned char)mem[dir_fisica_actual + j];
                             printf("%c", (car >= 32 && car <= 126) ? car : '.');
                         }
                     }
-                    if (formato & 0x01)                         // 16737
+                    if (formato & 0x01)
                         printf(" %d", con_signo);
                     printf("\n");
                 }
@@ -144,8 +137,8 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         }
         break;
     }
- 
-    case 0x3: { // STRING READ: lee una linea y la guarda desde [EDX] terminada en '\0'
+
+    case 0x3: {
         int segmento = (reg[EDX] >> 16) & 0xFFFF;
         int offset   = reg[EDX] & 0xFFFF;
         if (segmento > 7 || seg[segmento][0] == -1 || offset >= (unsigned short)seg[segmento][1]) {
@@ -153,16 +146,16 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             exit(1);
         }
         int base       = (unsigned short)seg[segmento][0];
-        int disponible = (unsigned short)seg[segmento][1] - offset; // bytes hasta el fin del segmento
-        int maximo     = reg[ECX];                  // -1: sin limite
+        int disponible = (unsigned short)seg[segmento][1] - offset;
+        int maximo     = reg[ECX];
         int i = 0;
- 
+
         while ((c = getchar()) != '\n' && c != EOF) {
             if (c == '\r')
-                continue;                           // por si la entrada viene de Windows
+                continue;
             if (maximo >= 0 && i >= maximo)
-                continue;                           // supera maximo, se descarta
-            if (i + 1 >= disponible) {              // no entra caracter mas el '\0'
+                continue;
+            if (i + 1 >= disponible) {
                 printf("Fallo de segmento\n");
                 exit(1);
             }
@@ -175,8 +168,8 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         reg[MBR] = 0;
         break;
     }
- 
-    case 0x4: { // STRING WRITE: imprime desde [EDX] hasta el '\0'
+
+    case 0x4: {
         int segmento = (reg[EDX] >> 16) & 0xFFFF;
         int offset   = reg[EDX] & 0xFFFF;
         if (segmento > 7 || seg[segmento][0] == -1 || offset >= (unsigned short)seg[segmento][1]) {
@@ -186,10 +179,10 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         int base   = (unsigned short)seg[segmento][0];
         int limite = (unsigned short)seg[segmento][1];
         int fin    = offset;
- 
+
         while (fin < limite && mem[base + fin] != '\0')
             fin++;
-        if (fin >= limite) { // string no termina dentro del segmento
+        if (fin >= limite) {
             printf("Fallo de segmento\n");
             exit(1);
         }
@@ -200,14 +193,13 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         reg[MBR] = 0;
         break;
     }
- 
-    case 0xF: { // BREAKPOINT
-        if (vmi_actual == NULL) // si no hay vmi se ignora
+
+    case 0xF: {
+        if (vmi_actual == NULL)
             break;
         bp_anidado = 1;
- 
+
         while (1) {
-            // 1. Imagen: header + 32 registros + tabla de segmentos + memoria (big endian)
             FILE *arch = fopen(vmi_actual, "wb");
             if (arch == NULL) {
                 printf("ERROR: no se pudo crear el archivo de imagen %s\n", vmi_actual);
@@ -216,53 +208,48 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             unsigned char header[8] = { 'V', 'M', 'I', '2', '6', 1,
                                         ((ram_actual / 1024) >> 8) & 0xFF, (ram_actual / 1024) & 0xFF };
             fwrite(header, 1, 8, arch);
- 
+
             for (int i = 0; i < 32; i++) {
                 unsigned char b[4] = { (reg[i] >> 24) & 0xFF, (reg[i] >> 16) & 0xFF,
                                        (reg[i] >> 8) & 0xFF,  reg[i] & 0xFF };
                 fwrite(b, 1, 4, arch);
             }
             for (int i = 0; i < 8; i++) {
-                unsigned char b[4] = { (seg[i][0] >> 8) & 0xFF, seg[i][0] & 0xFF,    // base
-                                       (seg[i][1] >> 8) & 0xFF, seg[i][1] & 0xFF };  // tamanio
+                unsigned char b[4] = { (seg[i][0] >> 8) & 0xFF, seg[i][0] & 0xFF,
+                                       (seg[i][1] >> 8) & 0xFF, seg[i][1] & 0xFF };
                 fwrite(b, 1, 4, arch);
             }
             fwrite(mem, 1, ram_actual, arch);
             fclose(arch);
- 
-            // 2. Espera la accion del usuario: g, q o Enter
+
             char linea[32];
-            int accion = 0;                         // 'g' o '\n'
+            int accion = 0;
             while (accion == 0) {
                 printf("[breakpoint] g: continuar | q: salir | Enter: paso a paso > ");
                 fflush(stdout);
- 
-                if (fgets(linea, sizeof(linea), stdin) == NULL)  // sin entrada: continua
+
+                if (fgets(linea, sizeof(linea), stdin) == NULL)
                     accion = 'g';
                 else {
-                    if (strchr(linea, '\n') == NULL)             // linea mas larga que el buffer
+                    if (strchr(linea, '\n') == NULL)
                         while ((c = getchar()) != '\n' && c != EOF);
- 
+
                     if (linea[0] == '\n' || linea[0] == '\r')
                         accion = '\n';
                     else if (linea[0] == 'g' || linea[0] == 'G')
                         accion = 'g';
                     else if (linea[0] == 'q' || linea[0] == 'Q')
-                        exit(0);                                 // vmi queda guardado
-                    // cualquier otra tecla: se vuelve a preguntar
+                        exit(0);
                 }
             }
             if (accion == 'g')
-                break;                              // ejecutarProceso sigue normalmente
- 
-            // 3. Enter: se ejecuta una instruccion y se vuelve a pausar.
-            // Si programa ya termino, no hay mas a ejecutar.
+                break;
+
             int seg_ip = (reg[IP] >> 16) & 0xFFFF;
             int off_ip = reg[IP] & 0xFFFF;
             if (reg[IP] == -1 || seg_ip > 7 || seg[seg_ip][0] == -1 || off_ip >= (unsigned short)seg[seg_ip][1])
                 break;
- 
-            // lectura y decodificacion: lo mismo que hace ejecutarProceso
+
             int pc = (unsigned short)seg[seg_ip][0] + off_ip;
             unsigned char primer_byte = mem[pc];
             int opcode, tipoA, tipoB;
@@ -277,27 +264,37 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             }
             reg[OPC] = opcode;
             reg[IP] += (1 + tipoA + tipoB);
- 
+
             int valorA = 0, valorB = 0;
             int pos = pc + 1;
-            if (tipoB == 1) { valorB = mem[pos] & 0xFF; pos += 1; }
-            else if (tipoB == 2) { valorB = (short)(((mem[pos] & 0xFF) << 8) | (mem[pos+1] & 0xFF)); pos += 2; }
-            else if (tipoB == 3) { valorB = ((mem[pos] & 0xFF) << 16) | ((mem[pos+1] & 0xFF) << 8) | (mem[pos+2] & 0xFF); pos += 3; }
-            if (tipoA == 1) { valorA = mem[pos] & 0xFF; }
-            else if (tipoA == 2) { valorA = (short)(((mem[pos] & 0xFF) << 8) | (mem[pos+1] & 0xFF)); }
-            else if (tipoA == 3) { valorA = ((mem[pos] & 0xFF) << 16) | ((mem[pos+1] & 0xFF) << 8) | (mem[pos+2] & 0xFF); }
- 
+            if (tipoB == 1) {
+                valorB = mem[pos] & 0xFF; pos += 1;
+            }
+            else if (tipoB == 2) {
+                valorB = (short)(((mem[pos] & 0xFF) << 8) | (mem[pos+1] & 0xFF)); pos += 2;
+            }
+            else if (tipoB == 3) {
+                valorB = ((mem[pos] & 0xFF) << 16) | ((mem[pos+1] & 0xFF) << 8) | (mem[pos+2] & 0xFF); pos += 3;
+            }
+            if (tipoA == 1) {
+                valorA = mem[pos] & 0xFF;
+            }
+            else if (tipoA == 2) {
+                valorA = (short)(((mem[pos] & 0xFF) << 8) | (mem[pos+1] & 0xFF));
+            }
+            else if (tipoA == 3) {
+                valorA = ((mem[pos] & 0xFF) << 16) | ((mem[pos+1] & 0xFF) << 8) | (mem[pos+2] & 0xFF);
+            }
+
             reg[OP1] = (tipoA == 0) ? 0 : ((tipoA << 24) | (valorA & 0x00FFFFFF));
             reg[OP2] = (tipoB == 0) ? 0 : ((tipoB << 24) | (valorB & 0x00FFFFFF));
- 
+
             bp_anidado = 0;
             operaciones[opcode](reg, mem, seg);
- 
-            // si instruccion fue otro SYS F, breakpoint ya hizo su pausa
+
             if (bp_anidado)
                 break;
- 
-            // si con esa instruccion termina programa, no se pausa de nuevo
+
             seg_ip = (reg[IP] >> 16) & 0xFFFF;
             off_ip = reg[IP] & 0xFFFF;
             if (reg[IP] == -1 || seg_ip > 7 || seg[seg_ip][0] == -1 || off_ip >= (unsigned short)seg[seg_ip][1])
@@ -306,7 +303,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         bp_anidado = 1;
         break;
     }
- 
+
     default:
         printf("ERROR: llamada al sistema invalida (SYS %X).\n", op_a);
         exit(1);
@@ -457,49 +454,45 @@ void inst_push(int reg[], char mem[], short int seg[][2]) {
         printf("ERROR: STACK OVERFLOW\n");
         exit(1);
     }
+
+    reg[SP] = (reg[SS] & 0xFFFF0000) | (offsetSp & 0xFFFF);
+
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int indiceSS = (reg[SS]>>16) & 0xffff;
     int dirFisica = (unsigned short)seg[indiceSS][0] + offsetSp;
 
-    // guardo valor del opA respetando el bigendian
     mem[dirFisica] = (opA >> 24) & 0xff;
     mem[dirFisica + 1] = (opA >> 16) & 0xff;
     mem[dirFisica + 2] = (opA >> 8)  & 0xff;
     mem[dirFisica + 3] = opA & 0xff;
 
-    reg[LAR] = offsetSp;    // Dirección lógica donde apilamos
-    reg[MAR] = dirFisica;   // Dirección física real en memoria
+    reg[LAR] = (indiceSS << 16) | (offsetSp & 0xFFFF);
+    reg[MAR] = (4 << 16) | (dirFisica & 0xFFFF);
     reg[MBR] = opA;
-
-    reg[SP] = (reg[SS] & 0xFFFF0000) | (offsetSp & 0xFFFF); // actualizo sp con el nuevo offset por haber hecho push en la pila
-
-
-
-
 }
 void inst_pop(int reg[], char mem[], short int seg[][2]) {
     if (reg[SS] == -1) {
-        printf("ERROR: STACK OVERFLOW\n");
+        printf("STACK UNDERFLOW\n");
         exit(1);
     }
     int offsetSP = reg[SP] & 0xFFFF;
 
-    int idiceSS = (reg[SS] >> 16) & 0xFFFF;
-    int limiteSS = (unsigned short)seg[idiceSS][1];
+    int indiceSS = (reg[SS] >> 16) & 0xFFFF;
+    int limiteSS = (unsigned short)seg[indiceSS][1];
 
     if (offsetSP + 4 > limiteSS) { // si la pila esta vacia no puedo sacar nada
         printf("ERROR: STACK UNDERFLOW\n");
         exit(1);
     }
-    int dirFisica = (unsigned short)seg[idiceSS][0] + offsetSP;
+    int dirFisica = (unsigned short)seg[indiceSS][0] + offsetSP;
 
     int valExtraido = ((mem[dirFisica] & 0xFF) << 24) |
                    ((mem[dirFisica + 1] & 0xFF) << 16) |
                    ((mem[dirFisica + 2] & 0xFF) << 8) |
                    (mem[dirFisica + 3] & 0xFF);
 
-    reg[LAR] = offsetSP;        // Dirección lógica de donde desapilamos
-    reg[MAR] = dirFisica;       // Dirección física real en memoria
+    reg[LAR] = (indiceSS << 16) | (offsetSP & 0xFFFF);
+    reg[MAR] = (4 << 16) | (dirFisica & 0xFFFF);        // Dirección física real en memoria
     reg[MBR] = valExtraido;
 
     set_valor(reg[OP1], valExtraido, reg, mem, seg);
@@ -517,8 +510,8 @@ void inst_call(int reg[], char mem[], short int seg[][2]) {
         exit(1);
     }
     int opA = get_valor(reg[OP1], reg, mem, seg);
-    int idiceSS = (reg[SS] >> 16) & 0xFFFF;
-    int dirFisica = (unsigned short)seg[idiceSS][0] + offsetSP;
+    int indiceSS = (reg[SS] >> 16) & 0xFFFF;
+    int dirFisica = (unsigned short)seg[indiceSS][0] + offsetSP;
 
     int valIP = reg[IP];
     mem[dirFisica]     = (valIP >> 24) & 0xFF;
@@ -527,8 +520,8 @@ void inst_call(int reg[], char mem[], short int seg[][2]) {
     mem[dirFisica + 3] = valIP & 0xFF;
 
 
-    reg[LAR] = offsetSP;
-    reg[MAR] = dirFisica;
+    reg[LAR] = (indiceSS << 16) | (offsetSP & 0xFFFF);
+    reg[MAR] = (4 << 16) | (dirFisica & 0xFFFF);
     reg[MBR] = valIP;
 
     reg[SP] = (reg[SS] & 0xFFFF0000) | (offsetSP & 0xFFFF);
@@ -542,12 +535,12 @@ void inst_call(int reg[], char mem[], short int seg[][2]) {
 }
 void inst_ret(int reg[], char mem[], short int seg[][2]) {
     if (reg[SS] == -1) {
-        printf("ERROR: STACK OVERFLOW\n");
+        printf("STACK UNDERFLOW\n");
         exit(1);
     }
     int offsetSP = reg[SP] & 0xFFFF;
-    int idiceSS = (reg[SS] >> 16) & 0xFFFF;
-    int limiteSS = (unsigned short)seg[idiceSS][1];
+    int indiceSS = (reg[SS] >> 16) & 0xFFFF;
+    int limiteSS = (unsigned short)seg[indiceSS][1];
 
 
     if (offsetSP + 4 > limiteSS) {
@@ -555,7 +548,7 @@ void inst_ret(int reg[], char mem[], short int seg[][2]) {
         exit(1);
     }
 
-    int dirFisica = (unsigned short)seg[idiceSS][0] + offsetSP;
+    int dirFisica = (unsigned short)seg[indiceSS][0] + offsetSP;
 
     // Extraigo la dirección de retorno q esta en la pila
     int valIP = ((mem[dirFisica] & 0xFF) << 24) |
@@ -563,8 +556,8 @@ void inst_ret(int reg[], char mem[], short int seg[][2]) {
                 ((mem[dirFisica + 2] & 0xFF) << 8) |
                 (mem[dirFisica + 3] & 0xFF);
 
-    reg[LAR] = offsetSP;
-    reg[MAR] = dirFisica;
+    reg[LAR] = (indiceSS << 16) | (offsetSP & 0xFFFF);
+    reg[MAR] = (4 << 16) | (dirFisica & 0xFFFF);
     reg[MBR] = valIP;
 
     reg[IP] = valIP;  // Retauro el ip para volver
@@ -710,49 +703,55 @@ void inst_swap(int reg[], char mem[], short int seg[][2]) {
 void inst_shl (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[OP1],reg,mem,seg);
     int op_b = get_valor(reg[OP2],reg,mem,seg);
+    int resultado = 0, carry = 0, overflow = 0;
 
-    int shift = op_b & 0x1F;
-    unsigned int ua = (unsigned int)op_a;
-    unsigned int ur = ua << shift;       // shift bien definido siempre
-    int resultado = (int)ur;
-
-    int carry = 0;
-    if (shift > 0) {
-        carry = (ua >> (32 - shift)) & 1;
+    if (op_b >= 32) { // CORREGIDO: Desplazamiento que vacía el registro
+        resultado = 0;
+    } else if (op_b > 0) {
+        unsigned int ua = (unsigned int)op_a;
+        resultado = (int)(ua << op_b);
+        carry = (ua >> (32 - op_b)) & 1;
+        long long real = (long long)op_a * (1LL << op_b);
+        overflow = (real != resultado) ? 1 : 0;
+    } else {
+        resultado = op_a;
     }
-
-    long long real = (long long)op_a * (1LL << shift);
-    int overflow = (real != resultado) ? 1 : 0;
-
     set_valor(reg[OP1], resultado, reg, mem, seg);
     actualizarCC(reg, resultado, carry, overflow);
 }
+
 void inst_shr (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int opB = get_valor(reg[OP2], reg,mem, seg);
-    int carry = 0;
-    int shift = opB & 0x1F; // evito que el valor de desplacamiento supere los 32 bits para que no rompa el programa
-    unsigned int resultado = (unsigned int)opA >> shift;
+    int resultado = 0, carry = 0;
 
-    unsigned int ua = (unsigned int)opA;
-    if (shift > 0)
-        carry = (ua >> (shift - 1)) & 1; // aislo el bit que se cayo segun el desplamiento para calcular el carry
-
+    if (opB >= 32) {
+        resultado = 0;
+    } else if (opB > 0) {
+        resultado = (unsigned int)opA >> opB;
+        carry = ((unsigned int)opA >> (opB - 1)) & 1;
+    } else {
+        resultado = opA;
+    }
     set_valor(reg[OP1], resultado, reg, mem,seg);
-    actualizarCC(reg, resultado,carry,0);
+    actualizarCC(reg, resultado, carry, 0);
 }
+
 void inst_sar (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int opB = get_valor(reg[OP2], reg,mem, seg);
-    int carry = 0;
-    int shift = opB & 0x1F; // evito que el valor de desplazamiento supere los 32 bits para que no rompa el programa
-    int resultado = opA >> shift; // sigue la misma logica que shr pero como propaga signo va int directo
+    int resultado = 0, carry = 0;
 
-    if (shift > 0)
-        carry = (opA >> (shift - 1)) & 1; // aislo el bit que se cayo segun el desplamiento para calcular el carry
-
+    if (opB >= 32) {
+        resultado = (opA < 0) ? -1 : 0; // CORREGIDO: SAR propaga el signo
+    } else if (opB > 0) {
+        resultado = opA >> opB;
+        carry = (opA >> (opB - 1)) & 1;
+    } else {
+        resultado = opA;
+    }
     set_valor(reg[OP1], resultado, reg, mem,seg);
-    actualizarCC(reg, resultado,carry,0);
+    actualizarCC(reg, resultado, carry, 0);
 }
 void inst_ldl (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[OP1],reg,mem,seg);
@@ -896,12 +895,11 @@ int get_valor(int operando_empaquetado, int registros[], char memoriaPrincipal[]
         int sector = (valor_crudo >> 5) & 0x03; // Extraemos los 2 bits de sector
         int valor_completo = registros[reg];
 
-        // Retornamos según el sector solicitado propagando signo si es necesario
         if (sector == 1) { // LOW
-            return (int)((char)(valor_completo & 0xFF));
+            return (int)((signed char)(valor_completo & 0xFF));
         }
         else if (sector == 2) { // HIGH
-            return (int)((char)((valor_completo >> 8) & 0xFF));
+            return (int)((signed char)((valor_completo >> 8) & 0xFF));
         }
         else if (sector == 3) { // 2 BYTE
             return (int)((short)(valor_completo & 0xFFFF));
@@ -982,10 +980,10 @@ void actualizarCC(int registros[], int resultado, int carry, int overflow) {
     int z = (resultado == 0) ? 1 : 0;
 
 
-    registros[17] &= 0x0FFFFFFF;
+    registros[CC] &= 0x0FFFFFFF;
 
-    registros[17] |= ((unsigned int)n << 31);
-    registros[17] |= (z << 30);
-    registros[17] |= (carry << 29);
-    registros[17] |= (overflow << 28);
+    registros[CC] |= ((unsigned int)n << 31);
+    registros[CC] |= (z << 30);
+    registros[CC] |= (carry << 29);
+    registros[CC] |= (overflow << 28);
 }
