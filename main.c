@@ -323,7 +323,7 @@ int main(int argc, char* argv[]) {
             break; // lo que sigue son parametros del programa, no de la VM
         } else if (strncmp(argv[i], "m=", 2) == 0) {
             tamRamKib = atoi(argv[i] + 2);
-            if (tamRamKib <= 0 || tamRamKib > 65535) {   // la tabla guarda direcciones de 16 bits
+            if (tamRamKib <= 0 || tamRamKib > 64) {   // la tabla guarda direcciones de 16 bits
                 printf("Error: el tamanio de la memoria debe estar entre 1 y 64 KiB.\n");
                 return 1;
             }
