@@ -723,35 +723,27 @@ void inst_shl (int reg[], char mem[], short int seg[][2]) {
 void inst_shr (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int opB = get_valor(reg[OP2], reg,mem, seg);
-    int resultado = 0, carry = 0;
+    int resultado = opA;
 
-    if (opB >= 32) {
+    if (opB >= 32)
         resultado = 0;
-    } else if (opB > 0) {
+    else if (opB > 0)
         resultado = (unsigned int)opA >> opB;
-        carry = ((unsigned int)opA >> (opB - 1)) & 1;
-    } else {
-        resultado = opA;
-    }
     set_valor(reg[OP1], resultado, reg, mem,seg);
-    actualizarCC(reg, resultado, carry, 0);
+    actualizarCC(reg, resultado, 0, 0);    
 }
 
 void inst_sar (int reg[], char mem[], short int seg[][2]) {
     int opA = get_valor(reg[OP1], reg,mem, seg);
     int opB = get_valor(reg[OP2], reg,mem, seg);
-    int resultado = 0, carry = 0;
+    int resultado = opA;
 
-    if (opB >= 32) {
-        resultado = (opA < 0) ? -1 : 0;
-    } else if (opB > 0) {
+    if (opB >= 32)
+        resultado = (opA < 0) ? -1 : 0;  
+    else if (opB > 0)
         resultado = opA >> opB;
-        carry = (opA >> (opB - 1)) & 1;
-    } else {
-        resultado = opA;
-    }
     set_valor(reg[OP1], resultado, reg, mem,seg);
-    actualizarCC(reg, resultado, carry, 0);
+    actualizarCC(reg, resultado, 0, 0);
 }
 void inst_ldl (int reg[], char mem[], short int seg[][2]) {
     int op_a = get_valor(reg[OP1],reg,mem,seg);
