@@ -707,15 +707,19 @@ void inst_shl (int reg[], char mem[], short int seg[][2]) {
 
     if (op_b >= 32) {
         resultado = 0;
+        carry = (op_a != 0);
+        overflow = (op_a != 0);
     } else if (op_b > 0) {
-        unsigned int ua = (unsigned int)op_a;
-        resultado = (int)(ua << op_b);
-        carry = (ua >> (32 - op_b)) & 1;
-        long long real = (long long)op_a * (1LL << op_b);
-        overflow = (real != resultado) ? 1 : 0;
+        unsigned long long sinSigno = (unsigned long long)(unsigned int)op_a << op_b;
+        long long conSigno = (long long)op_a * (1LL << op_b);
+
+        resultado = (int)(unsigned int)sinSigno;
+        carry = (sinSigno >> 32) != 0;
+        overflow = (conSigno != resultado);
     } else {
         resultado = op_a;
     }
+
     set_valor(reg[OP1], resultado, reg, mem, seg);
     actualizarCC(reg, resultado, carry, overflow);
 }
