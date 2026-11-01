@@ -31,19 +31,15 @@ void imprimirOperando(int tipo, int valor_crudo, const char* nom_regs[]) {
         int reg = valor_crudo & 0x1F;
         int modificador = (valor_crudo >> 5) & 0x07;
 
-        // Decodificar el modificador de tamaño de memoria
         const char* prefijo = "";
         if (modificador == 1) prefijo = "b";
         else if (modificador == 2) prefijo = "w";
         else if (modificador == 4) prefijo = "l";
 
-        if (offset == 0) {
-            printf("%s[%s]", prefijo, nom_regs[reg]);
-        } else if (offset > 0) {
+        if (offset >= 0)
             printf("%s[%s+%d]", prefijo, nom_regs[reg], offset);
-        } else {
+        else
             printf("%s[%s%d]", prefijo, nom_regs[reg], offset);
-        }
         return;
     }
 }
