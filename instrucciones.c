@@ -44,7 +44,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             }
             if (segmento < 0 || segmento > 7 || seg[segmento][0] == -1 ||
                 (offset_base + (cantValores * cantByte)) > (unsigned short)seg[segmento][1]) {
-                printf("Fallo de segmento\n");
+                printf("ERROR: Segmentation Fault\n");
                 exit(1);
             }
 
@@ -142,7 +142,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         int segmento = (reg[EDX] >> 16) & 0xFFFF;
         int offset   = reg[EDX] & 0xFFFF;
         if (segmento > 7 || seg[segmento][0] == -1 || offset >= (unsigned short)seg[segmento][1]) {
-            printf("Fallo de segmento\n");
+            printf("ERROR: Segmentation Fault\n");
             exit(1);
         }
         int base       = (unsigned short)seg[segmento][0];
@@ -156,7 +156,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
             if (maximo >= 0 && i >= maximo)
                 continue;
             if (i + 1 >= disponible) {
-                printf("Fallo de segmento\n");
+                printf("ERROR: Segmentation Fault\n");
                 exit(1);
             }
             mem[base + offset + i] = (char)c;
@@ -173,7 +173,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         int segmento = (reg[EDX] >> 16) & 0xFFFF;
         int offset   = reg[EDX] & 0xFFFF;
         if (segmento > 7 || seg[segmento][0] == -1 || offset >= (unsigned short)seg[segmento][1]) {
-            printf("Fallo de segmento\n");
+            printf("ERROR: Segmentation Fault\n");
             exit(1);
         }
         int base   = (unsigned short)seg[segmento][0];
@@ -183,7 +183,7 @@ void inst_sys (int reg[], char mem[], short int seg[][2]) {
         while (fin < limite && mem[base + fin] != '\0')
             fin++;
         if (fin >= limite) {
-            printf("Fallo de segmento\n");
+            printf("ERROR: Segmentation Fault\n");
             exit(1);
         }
         fwrite(&mem[base + offset], 1, fin - offset, stdout);
@@ -353,7 +353,7 @@ void inst_jz  (int reg[], char mem[], short int seg[][2]){
     int z = (reg[CC] >> 30) & 0x1;
 
     if(z == 1){
-        int op = get_valor(reg[OP1],reg,mem,seg); // CORREGIDO: antes decía reg[2]
+        int op = get_valor(reg[OP1],reg,mem,seg);
         if (saltoValido(op, reg, seg))
             reg[IP] = (reg[CS] & 0xFFFF0000) | (op & 0xFFFF);
         else {
@@ -441,17 +441,17 @@ void inst_not (int reg[], char mem[], short int seg[][2]) {
     actualizarCC(reg,resultado,0,0);
 }
 void inst_invalida(int reg[], char mem[], short int seg[][2]){
-    printf("INSTRUCCION INVALIDA\n");
+    printf("ERROR: Instruccion Invalida\n");
     exit(1);
 }
 void inst_push(int reg[], char mem[], short int seg[][2]) {
     if (reg[SS] == -1) {
-        printf("ERROR: STACK OVERFLOW\n");
+        printf("ERROR: Stack Overflow\n");
         exit(1);
     }
     int offsetSp = (reg[SP] & 0xffff) - 4;
     if (offsetSp < 0) {
-        printf("ERROR: STACK OVERFLOW\n");
+        printf("ERROR: Stack Overflow\n");
         exit(1);
     }
 
@@ -472,7 +472,7 @@ void inst_push(int reg[], char mem[], short int seg[][2]) {
 }
 void inst_pop(int reg[], char mem[], short int seg[][2]) {
     if (reg[SS] == -1) {
-        printf("STACK UNDERFLOW\n");
+        printf("ERROR: Stack Underflow\n");
         exit(1);
     }
     int offsetSP = reg[SP] & 0xFFFF;
@@ -481,7 +481,7 @@ void inst_pop(int reg[], char mem[], short int seg[][2]) {
     int limiteSS = (unsigned short)seg[indiceSS][1];
 
     if (offsetSP + 4 > limiteSS) { // si la pila esta vacia no puedo sacar nada
-        printf("ERROR: STACK UNDERFLOW\n");
+        printf("ERROR: Stack Underflow\n");
         exit(1);
     }
     int dirFisica = (unsigned short)seg[indiceSS][0] + offsetSP;
@@ -500,13 +500,13 @@ void inst_pop(int reg[], char mem[], short int seg[][2]) {
 }
 void inst_call(int reg[], char mem[], short int seg[][2]) {
     if (reg[SS] == -1) {
-        printf("ERROR: STACK OVERFLOW\n");
+        printf("ERROR: Stack Overflow\n");
         exit(1);
     }
     int offsetSP = (reg[SP] & 0xFFFF) - 4;
 
     if (offsetSP < 0) {
-        printf("ERROR: STACK OVERFLOW\n");
+        printf("ERROR: Stack Overflow\n");
         exit(1);
     }
     int opA = get_valor(reg[OP1], reg, mem, seg);
@@ -535,7 +535,7 @@ void inst_call(int reg[], char mem[], short int seg[][2]) {
 }
 void inst_ret(int reg[], char mem[], short int seg[][2]) {
     if (reg[SS] == -1) {
-        printf("STACK UNDERFLOW\n");
+        printf("ERROR: Stack Underflow\n");
         exit(1);
     }
     int offsetSP = reg[SP] & 0xFFFF;
@@ -544,7 +544,7 @@ void inst_ret(int reg[], char mem[], short int seg[][2]) {
 
 
     if (offsetSP + 4 > limiteSS) {
-        printf("STACK UNDERFLOW\n");
+        printf("ERROR: Stack Underflow\n");
         exit(1);
     }
 
@@ -705,7 +705,7 @@ void inst_shl (int reg[], char mem[], short int seg[][2]) {
     int op_b = get_valor(reg[OP2],reg,mem,seg);
     int resultado = 0, carry = 0, overflow = 0;
 
-    if (op_b >= 32) { // CORREGIDO: Desplazamiento que vacía el registro
+    if (op_b >= 32) {
         resultado = 0;
     } else if (op_b > 0) {
         unsigned int ua = (unsigned int)op_a;
@@ -743,7 +743,7 @@ void inst_sar (int reg[], char mem[], short int seg[][2]) {
     int resultado = 0, carry = 0;
 
     if (opB >= 32) {
-        resultado = (opA < 0) ? -1 : 0; // CORREGIDO: SAR propaga el signo
+        resultado = (opA < 0) ? -1 : 0;
     } else if (opB > 0) {
         resultado = opA >> opB;
         carry = (opA >> (opB - 1)) & 1;
