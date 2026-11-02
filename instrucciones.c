@@ -771,31 +771,17 @@ void inst_rnd (int reg[], char mem[], short int seg[][2]) {
     int resultado = rand() % (op_b + 1);
     set_valor(reg[OP1], resultado, reg, mem, seg);
 }
-void devuelveNotacionBinaria(int nro,char *s){ //funcion auxiliar para imprimir numeros en binario, recibe un numero y un string donde se guardara la notacion binaria
-    char* aux = s,car;int longBits,i;
-    longBits = sizeof(nro)*8;
-    if (nro<0)
-        car='1';
-    else
-        car='0';
-    for(i=0;i<longBits;i++){
-        *s=car;
-        s++;
-    }
-    *s='\0';
-    s=s-1;
-    i--;
-    while(nro>0 || (nro<0 && i>0)){
-        if(nro & 0b1)
-            *s='1';
-        else
-            *s='0';
-        s=s-1;
-        nro=nro>>1;
-        if(nro<0)
-            i--;
-    }
-    s = aux;
+void devuelveNotacionBinaria(int nro,char *s){ // escribe en s (33 chars) el numero en binario, sin ceros a la izquierda
+    unsigned int u = (unsigned int)nro;
+    char aux[33];
+    int n = 0;
+    do {                                   // saca los bits de atras para adelante
+        aux[n++] = (u & 1u) ? '1' : '0';
+        u >>= 1;
+    } while (u != 0);
+    for (int i = 0; i < n; i++)            // los da vuelta
+        s[i] = aux[n - 1 - i];
+    s[n] = '\0';
 }
 void set_valor(int operando_empaquetado, int valor_a_guardar, int registros[], char memoriaPrincipal[], short int tablaSegmentos[8][2]){
     int tipo = (unsigned int)operando_empaquetado >> 24;
